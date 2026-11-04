@@ -617,7 +617,12 @@ function evaluateAll(ssris, cvDrugs){
 /* =====================================================================
    STORAGE + DÁDER SCHEMA
    ===================================================================== */
-const KEY = "cardiosync:assessments";
+/* Privacidade (LGPD): a avaliação fica só na aba aberta (sessionStorage) — sobrevive a
+   um F5, some ao fechar a aba. Nada fica guardado de forma permanente no navegador:
+   ao finalizar, baixa-se o PDF + o arquivo de dados do paciente (.json), que pode ser
+   importado depois para continuar o seguimento. */
+const SESSION_KEY = "farmacompanha:sessao";
+const LEGACY_KEY = "cardiosync:assessments";   // versões antigas guardavam aqui (localStorage, permanente)
 function uuid(){ return (crypto.randomUUID && crypto.randomUUID()) || ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16)})); }
 
 function emptyAssessment(){
@@ -714,24 +719,34 @@ function migrate(a){
   return m;
 }
 
-function getAssessments(){
-  try{
-    const raw = JSON.parse(localStorage.getItem(KEY)||"[]");
-    return raw.map(migrate);
-  }catch(e){ return []; }
+function readStore(storage, key){
+  try { const raw = JSON.parse(storage.getItem(key) || "[]"); return Array.isArray(raw) ? raw : []; }
+  catch(e){ return []; }
 }
+function writeSession(all){
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(all)); }
+  catch(e){ toast('Não foi possível guardar nesta aba — baixe o arquivo de dados para não perder.'); }
+}
+function getAssessments(){ return readStore(sessionStorage, SESSION_KEY).map(migrate); }
 function saveAssessment(a){
   const all = getAssessments();
   const i = all.findIndex(x=>x.id===a.id);
   const u = { ...a, updatedAt: new Date().toISOString() };
   if (i>=0) all[i]=u; else all.push(u);
-  localStorage.setItem(KEY, JSON.stringify(all));
+  writeSession(all);
   return u;
 }
-function deleteAssessment(id){
-  localStorage.setItem(KEY, JSON.stringify(getAssessments().filter(a=>a.id!==id)));
-}
+function deleteAssessment(id){ writeSession(getAssessments().filter(a=>a.id!==id)); }
 function getAssessment(id){ return getAssessments().find(a=>a.id===id); }
+/* marca a hora do último download sem alterar updatedAt (usado no aviso ao fechar a aba) */
+function markDownloaded(id){
+  const all = readStore(sessionStorage, SESSION_KEY), a = all.find(x=>x.id===id);
+  if (a){ a.downloadedAt = new Date().toISOString(); writeSession(all); }
+}
+function hasUnsaved(){ return getAssessments().some(a=>!a.downloadedAt || a.downloadedAt < a.updatedAt); }
+/* avaliações antigas, guardadas de forma permanente por versões anteriores */
+function legacyAssessments(){ try { return readStore(localStorage, LEGACY_KEY).map(migrate); } catch(e){ return []; } }
+function clearLegacy(){ try { localStorage.removeItem(LEGACY_KEY); } catch(e){} }
 
 /* =====================================================================
    GRANADA PRM CLASSIFIER
@@ -819,8 +834,8 @@ function topbar(active){
     <div class="nav">${items.map(i=>`<a href="${i.h}" class="${active===i.k?'active':''}">${i.t}</a>`).join('')}</div>
     <div class="right">
       <button class="btn sm" onclick="goLanding()" title="Voltar para a capa">🏠 Home</button>
-      <button class="btn sm" onclick="exportData()">Exportar</button>
-      <button class="btn sm" onclick="importData()">Importar</button>
+      ${currentCaseId() ? `<button class="btn sm" onclick="exportData()" title="Baixa o arquivo desta avaliação para continuar depois">⬇ Baixar dados</button>` : ''}
+      <button class="btn sm" onclick="importData()" title="Abrir o arquivo .json de um paciente">⬆ Importar</button>
     </div>
   </div>`;
 }
@@ -838,6 +853,7 @@ function footer(){
    ===================================================================== */
 function renderHome(){
   const list = getAssessments().slice().sort((a,b)=>new Date(b.updatedAt) - new Date(a.updatedAt));
+  const legacy = legacyAssessments();
   $app.innerHTML = `
     ${topbar('home')}
     <div class="container">
@@ -852,18 +868,40 @@ function renderHome(){
           </div>
         </div>
       </section>
+      ${legacy.length ? `
+      <div class="alert warn" style="margin-bottom:24px;align-items:flex-start">
+        <div>⚠</div>
+        <div style="flex:1">
+          <div class="t">${legacy.length} avaliação(ões) antiga(s) guardada(s) de forma permanente neste navegador</div>
+          <div style="color:var(--text);opacity:.85">Versões anteriores salvavam as avaliações aqui sem prazo — qualquer pessoa que use este computador poderia vê-las. Baixe o arquivo de cada paciente e apague-as do navegador.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <button class="btn primary sm" onclick="legacyDownloadAll()">⬇ Baixar arquivos e apagar</button>
+            <button class="btn danger sm" onclick="legacyDelete()">Apagar sem baixar</button>
+          </div>
+        </div>
+      </div>` : ''}
       <section>
         <div class="sec-head">
-          <h2>Avaliações Salvas</h2>
-          <span class="badge">${list.length} registros</span>
+          <h2>Atendimento</h2>
+          <span class="badge">🔒 Nada fica salvo neste navegador</span>
         </div>
-        ${list.length===0 ? `
-          <div class="empty">
-            <div class="icon">📄</div>
-            <h3>Nenhuma avaliação encontrada</h3>
-            <p>Comece criando uma nova avaliação seguindo as 9 etapas do Método Dáder.</p>
-            <a href="#/avaliacao/new" class="btn primary" style="margin-top:14px">Criar Avaliação</a>
-          </div>` : `
+        <div class="grid grid-2" style="margin-bottom:${list.length ? '28px' : '0'}">
+          <a href="#/avaliacao/new" class="card ass-card" style="display:block">
+            <div class="card-c">
+              <div class="card-t">＋ Nova avaliação</div>
+              <p class="card-d" style="margin-top:6px">Siga as 9 etapas do Método Dáder. Ao final, use <strong>Finalizar e baixar</strong> no relatório para guardar o PDF e o arquivo de dados no seu computador.</p>
+            </div>
+          </a>
+          <button type="button" class="card ass-card" onclick="importData()" style="display:block;text-align:left;width:100%;color:inherit;font:inherit">
+            <div class="card-c">
+              <div class="card-t">⬆ Importar avaliação</div>
+              <p class="card-d" style="margin-top:6px">Abra o arquivo <span class="mono">.json</span> de um paciente para continuar o seguimento sem redigitar os dados.</p>
+            </div>
+          </button>
+        </div>
+        ${list.length===0 ? '' : `
+          <div class="sec-head"><h2 style="font-size:16px">Em andamento nesta aba</h2>
+            <span class="small muted">Somem ao fechar a aba — baixe antes</span></div>
           <div class="grid grid-3">
             ${list.map(a=>{
               const prmCount = (a.prms||[]).filter(p=>classifyPRM(p)>0).length;
@@ -886,12 +924,13 @@ function renderHome(){
                     <span class="badge">🩺 ${probCount} PS</span>
                     ${prmCount>0?`<span class="badge purple">⚠ ${prmCount} PRM</span>`:''}
                     ${grave>0?`<span class="badge red">🚨 ${grave} interações graves</span>`:''}
+                    ${(!a.downloadedAt || a.downloadedAt < a.updatedAt)?`<span class="badge amber">⬇ Não baixada</span>`:`<span class="badge emerald">✓ Arquivo baixado</span>`}
                   </div>
                 </div>
                 <div class="card-f" style="padding:10px 14px;display:flex;gap:8px">
                   <a href="#/avaliacao/${a.id}" class="btn" style="flex:1">Continuar →</a>
-                  <a href="#/relatorio/${a.id}" class="btn sm" title="Relatório">📄</a>
-                  <button class="btn danger sm" onclick="deleteAss('${a.id}')" title="Excluir">🗑</button>
+                  <a href="#/relatorio/${a.id}" class="btn sm" title="Relatório e finalizar">📄</a>
+                  <button class="btn danger sm" onclick="deleteAss('${a.id}')" title="Descartar desta aba">🗑</button>
                 </div>
               </div>`;
             }).join('')}
@@ -901,7 +940,7 @@ function renderHome(){
     </div>`;
 }
 window.deleteAss = function(id){
-  if (!confirm("Excluir esta avaliação? Esta ação não pode ser desfeita.")) return;
+  if (!confirm("Descartar esta avaliação desta aba? Se você não baixou o arquivo de dados, ela será perdida.")) return;
   deleteAssessment(id); render();
 };
 
@@ -1130,7 +1169,7 @@ function drawWizard(){
       <aside>
         <div class="head">⚡ Avaliação Dáder</div>
         <nav>${navHtml}</nav>
-        <div class="foot">${wizardState.savedAt?'Salvo às '+wizardState.savedAt.toLocaleTimeString('pt-BR'):'Auto-save ativo'}<br>Ctrl+S para salvar</div>
+        <div class="foot">${wizardState.savedAt?'Salvo às '+wizardState.savedAt.toLocaleTimeString('pt-BR'):'Auto-save ativo'}<br>Guardado só nesta aba</div>
       </aside>
       <main>
         <div class="progress"><div class="progress-bar" style="width:${(step/9)*100}%"></div></div>
@@ -2110,7 +2149,7 @@ window.anthroSet = function(path, key, raw){
   if (b){ const u=b.getAttribute('data-u')||''; if(raw===''){ b.classList.add('empty'); b.innerHTML='—'; } else { b.classList.remove('empty'); b.innerHTML = v + (u?`<span class="u">${u}</span>`:''); } }
   updateAnthroReadouts();
   const foot=document.querySelector('.wizard aside .foot');
-  if (foot && wizardState.savedAt) foot.innerHTML = `Salvo às ${wizardState.savedAt.toLocaleTimeString('pt-BR')}<br>Ctrl+S para salvar`;
+  if (foot && wizardState.savedAt) foot.innerHTML = `Salvo às ${wizardState.savedAt.toLocaleTimeString('pt-BR')}<br>Guardado só nesta aba`;
 };
 function min0(el){ return el.getAttribute('min')||0; }
 function updateAnthroReadouts(){
@@ -2129,7 +2168,7 @@ function bindStep(step){
       setByPath(path, v);
       persist();
       const foot = document.querySelector('.wizard aside .foot');
-      if (foot && wizardState.savedAt) foot.innerHTML = `Salvo às ${wizardState.savedAt.toLocaleTimeString('pt-BR')}<br>Ctrl+S para salvar`;
+      if (foot && wizardState.savedAt) foot.innerHTML = `Salvo às ${wizardState.savedAt.toLocaleTimeString('pt-BR')}<br>Guardado só nesta aba`;
       if (path==='anthropometric.weight'||path==='anthropometric.height'||path==='anthropometric.egfr'){ drawStep(step); }
       if (path==='anthropometric.age'||path==='labs.creatinine') refreshScores();
     });
@@ -2234,7 +2273,7 @@ window.addEventListener('keydown', e=>{
    ===================================================================== */
 function renderReport(id){
   const d = getAssessment(id);
-  if (!d){ $app.innerHTML = `<div class="container"><p>Relatório não encontrado.</p><a href="#/" class="btn">Voltar</a></div>`; return; }
+  if (!d){ $app.innerHTML = `<div class="container"><p>Esta avaliação não está aberta nesta aba. Para abri-la, use <strong>Importar</strong> com o arquivo .json do paciente.</p><a href="#/" class="btn">Voltar</a></div>`; return; }
   const ssris = d.medications.filter(m=>m.type==='ssri'&&m.drugId).map(m=>SSRI_BY_ID[m.drugId]).filter(Boolean);
   const cvs = d.medications.filter(m=>m.type==='cv'&&m.drugId).map(m=>CV_BY_ID[m.drugId]).filter(Boolean);
   const ints = evaluateAll(ssris,cvs).sort((a,b)=>b.severityScore-a.severityScore);
@@ -2267,7 +2306,8 @@ function renderReport(id){
       <div>Pré-visualização — Relatório de Seguimento Farmacoterapêutico</div>
       <div style="display:flex;gap:8px">
         <a href="#/avaliacao/${d.id}" class="btn sm" style="background:transparent;color:#fff;border-color:#475569">← Voltar para edição</a>
-        <button class="btn primary sm" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+        <button class="btn sm" onclick="window.print()" style="background:transparent;color:#fff;border-color:#475569" title="Só imprime; a avaliação continua aberta nesta aba">🖨 Imprimir / PDF</button>
+        <button class="btn primary sm" onclick="finalizeCase('${d.id}')" title="Baixa o arquivo de dados (.json), abre o PDF para salvar e depois apaga a avaliação deste navegador">✅ Finalizar e baixar</button>
       </div>
     </div>
     <div class="page">
@@ -2435,16 +2475,37 @@ function renderReport(id){
 /* =====================================================================
    EXPORT / IMPORT
    ===================================================================== */
-window.exportData = function(){
-  const data = JSON.stringify(getAssessments(), null, 2);
-  const blob = new Blob([data], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
+/* Um arquivo por paciente: farmacompanha-<nome>-<data>.json (o nome do PDF segue o mesmo padrão) */
+function caseFileBase(d){
+  const nm = normTxt(d.patient.name || 'paciente').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'paciente';
+  return `farmacompanha-${nm}-${new Date().toISOString().slice(0,10)}`;
+}
+function downloadText(text, filename, type){
+  const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement('a');
-  a.href = url; a.download = `farmacompanha-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 1000);
-  toast('Backup exportado');
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function casePayload(d){ return JSON.stringify({ app:'Farmacompanha', formato:1, exportadoEm:new Date().toISOString(), avaliacao:d }, null, 2); }
+function downloadCase(d){
+  downloadText(casePayload(d), caseFileBase(d) + '.json', 'application/json');
+  markDownloaded(d.id);
+}
+function currentCaseId(){
+  const m = location.hash.match(/^#\/(?:avaliacao|relatorio)\/([^/]+)$/);
+  return m && m[1] !== 'new' ? m[1] : null;
+}
+
+/* "Baixar dados": salva o arquivo da avaliação aberta, para pausar e continuar depois */
+window.exportData = function(){
+  const id = currentCaseId(), d = id && getAssessment(id);
+  if (!d){ toast('Abra uma avaliação para baixar os dados dela.'); return; }
+  downloadCase(d);
+  toast('Arquivo de dados baixado');
 };
+
+/* Importar: abre o arquivo .json de um paciente nesta aba (aceita também backups antigos) */
 window.importData = function(){
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.json,application/json';
@@ -2453,20 +2514,74 @@ window.importData = function(){
     const r = new FileReader();
     r.onload = ev=>{
       try{
-        const arr = JSON.parse(ev.target.result);
-        if (!Array.isArray(arr)) throw new Error("formato inválido");
-        if (!confirm(`Importar ${arr.length} avaliação(ões)? Os registros existentes serão preservados.`)) return;
+        const data = JSON.parse(ev.target.result);
+        let list;
+        if (Array.isArray(data)) list = data;                       // backup antigo (vários pacientes)
+        else if (data && data.avaliacao) list = [data.avaliacao];   // arquivo de um paciente
+        else if (data && data.id && data.patient) list = [data];
+        else throw new Error('não parece um arquivo do Farmacompanha');
+        list = list.filter(a=>a && a.id && a.patient).map(migrate);
+        if (!list.length) throw new Error('nenhuma avaliação encontrada no arquivo');
         const all = getAssessments();
-        const ids = new Set(all.map(a=>a.id));
-        arr.forEach(a=>{ if (!ids.has(a.id)) all.push(migrate(a)); });
-        localStorage.setItem(KEY, JSON.stringify(all));
-        toast('Importação concluída'); render();
-      }catch(err){ alert('Arquivo inválido: '+err.message); }
+        list.forEach(a=>{
+          a.downloadedAt = a.updatedAt;  // o conteúdo é igual ao do arquivo: não há nada novo a salvar
+          const i = all.findIndex(x=>x.id===a.id);
+          if (i>=0) all[i] = a; else all.push(a);
+        });
+        writeSession(all);
+        toast(list.length === 1 ? 'Avaliação importada' : `${list.length} avaliações abertas nesta aba`);
+        const target = list.length === 1 ? '#/avaliacao/' + list[0].id : '#/';
+        if (location.hash === target) render(); else location.hash = target;
+      }catch(err){ alert('Arquivo inválido: ' + err.message); }
     };
     r.readAsText(f);
   };
   inp.click();
 };
+
+/* Finalizar: baixa o .json, abre a janela para salvar o PDF e, ao fim, oferece apagar do navegador */
+window.finalizeCase = function(id){
+  const d = getAssessment(id); if (!d) return;
+  downloadCase(d);
+  const prevTitle = document.title;
+  document.title = caseFileBase(d);   // nome sugerido para o PDF na janela de impressão
+  let handled = false;
+  const done = ()=>{
+    if (handled) return; handled = true;
+    window.removeEventListener('afterprint', done);
+    document.title = prevTitle;
+    setTimeout(()=>{
+      if (confirm('Você salvou o PDF e o arquivo de dados (.json)?\n\nOK = apagar esta avaliação deste navegador.\nPara continuar o seguimento depois, use "Importar" com o arquivo .json.')){
+        deleteAssessment(id);
+        wizardState = { step:1, data:null, savedAt:null };
+        location.hash = '#/';
+        toast('Avaliação encerrada e apagada deste navegador');
+      }
+    }, 300);
+  };
+  window.addEventListener('afterprint', done);
+  setTimeout(()=>{ window.print(); }, 400);   // deixa o download do .json começar antes
+};
+
+/* Avaliações antigas (guardadas de forma permanente por versões anteriores) */
+window.legacyDownloadAll = function(){
+  const list = legacyAssessments(); if (!list.length) return;
+  list.forEach((a, i)=>setTimeout(()=>downloadText(casePayload(a), caseFileBase(a) + '.json', 'application/json'), i*400));
+  setTimeout(()=>{
+    if (confirm(`${list.length} arquivo(s) baixado(s) — confira na pasta Downloads.\n\nOK = apagar as avaliações antigas deste navegador.`)){
+      clearLegacy(); toast('Avaliações antigas apagadas deste navegador'); render();
+    }
+  }, list.length*400 + 900);
+};
+window.legacyDelete = function(){
+  if (!confirm('Apagar as avaliações antigas SEM baixar os arquivos? Esta ação não pode ser desfeita.')) return;
+  clearLegacy(); toast('Avaliações antigas apagadas'); render();
+};
+
+/* Aviso ao fechar a aba com dados que ainda não foram baixados */
+window.addEventListener('beforeunload', e=>{
+  if (hasUnsaved()){ e.preventDefault(); e.returnValue = ''; }
+});
 
 /* =====================================================================
    LANDING — sequência em partículas 3D (Three.js), automática e em loop

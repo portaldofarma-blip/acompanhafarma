@@ -1475,7 +1475,6 @@ function step4(d){
           <label class="chk"><input type="checkbox" data-rf="previousStroke" ${cv.riskFactors.previousStroke?'checked':''}/> AVC Prévio</label>
           <label class="chk"><input type="checkbox" data-rf="pad" ${cv.riskFactors.pad?'checked':''}/> Doença Arterial Periférica</label>
         </div>
-        <div id="cv-scores">${scoreCardsHTML(d)}</div>
       </div>
     </div>
 
@@ -1968,6 +1967,9 @@ function setByPath(path, val){
 
 /* =====================================================================
    ESCORES CARDIOVASCULARES — calculados a partir dos dados da avaliação
+   (FORA DE USO por enquanto: os cards foram tirados da Etapa 4 e do relatório.
+   Para reativar, inclua <div id="cv-scores">${scoreCardsHTML(d)}</div> no card
+   "Perfil Cardiovascular" da Etapa 4.)
    CHA₂DS₂-VASc: fatores de risco + idade + sexo (Etapa 1).
    HAS-BLED: o que dá para derivar (AVC, idade, creatinina, antiplaquetário/AINE
    na sacola) + critérios marcados à mão no próprio card.
@@ -2357,7 +2359,7 @@ function renderReport(id){
 
       <section>
         <h2 class="r-st">5. Resumo Clínico Adicional</h2>
-        <p><strong>Fatores de risco CV:</strong> ${rfList} &nbsp;·&nbsp; CHA₂DS₂-VASc: ${cha2ds2vascScore(d).score} &nbsp;·&nbsp; HAS-BLED: ${hasBledScore(d).score}</p>
+        <p><strong>Fatores de risco CV:</strong> ${rfList}</p>
         <p><strong>Alergias:</strong> ${escapeHtml(d.allergies||"Nenhuma relatada")}</p>
         ${d.observations?`<p><strong>Observações:</strong> ${escapeHtml(d.observations)}</p>`:''}
       </section>

@@ -120,6 +120,16 @@
   /* Checkbox/Radio */
   .chk{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
   .chk input{width:16px;height:16px;accent-color:var(--primary);margin:0;flex-shrink:0}
+  .tg-list{display:flex;flex-direction:column;gap:8px}
+  details.tg{border:1px solid var(--border);border-radius:10px;background:var(--panel2)}
+  details.tg>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;font-weight:600;font-size:14px}
+  details.tg>summary::-webkit-details-marker{display:none}
+  details.tg>summary::before{content:"▸";color:var(--muted);margin-right:6px;transition:transform .15s}
+  details.tg[open]>summary::before{transform:rotate(90deg)}
+  details.tg>summary>span:first-child{flex:1}
+  .tg-n{display:flex;align-items:center;gap:8px}
+  .tg-body{padding:2px 12px 12px}
+  .tg-sh{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:600;letter-spacing:.06em;margin:10px 0 6px}
   .seg{display:inline-flex;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:2px;gap:2px}
   .seg button{padding:5px 12px;border:0;background:transparent;color:var(--muted);border-radius:6px;font-size:12px;font-weight:600}
   .seg button.on{background:var(--primary);color:#fff}
@@ -3076,50 +3086,108 @@ function initLandingScene(THREE, { hero, canvas }){
    ROUTER
    ===================================================================== */
 /* =====================================================================
-   TRIAGEM DE RISCO — Betabloqueadores (β1-seletivos e não seletivos) × ISRS
-   Regras ILUSTRATIVAS para demonstrar o fluxo de triagem. Validar cada
-   conduta contra fontes oficiais (CPIC/PharmGKB, bula, Micromedex/Lexicomp).
-   Não substitui o julgamento do farmacêutico.
+   TRIAGEM DE RISCO — cardiometabólicos, antitrombóticos, analgésicos/anti-
+   inflamatórios, ISRS e indutores enzimáticos.
+   Fontes: diretrizes CPIC e DPWG (consultadas no ClinPGx), bulas aprovadas
+   (ANVISA/FDA/EMA) e Critérios de Beers AGS 2023. Ferramenta de APOIO à
+   triagem: não substitui o julgamento do farmacêutico nem a bula vigente.
    ===================================================================== */
-const TRIAGE_BB = [
-  // sel = β1-seletivo? | sub2d6 = substrato de CYP2D6 | renal | lipo (metab. hepático) | qt
-  { id:"propranolol", nome:"Propranolol", sel:false, sub2d6:true,  renal:false, lipo:true,  qt:false },
-  { id:"nadolol",     nome:"Nadolol",     sel:false, sub2d6:false, renal:true,  lipo:false, qt:false },
-  { id:"pindolol",    nome:"Pindolol",    sel:false, sub2d6:false, renal:false, lipo:false, qt:false },
-  { id:"sotalol",     nome:"Sotalol",     sel:false, sub2d6:false, renal:true,  lipo:false, qt:true  },
-  { id:"carvedilol",  nome:"Carvedilol",  sel:false, sub2d6:true,  renal:false, lipo:true,  qt:false },
-  { id:"labetalol",   nome:"Labetalol",   sel:false, sub2d6:false, renal:false, lipo:true,  qt:false },
-  { id:"timolol",     nome:"Timolol",     sel:false, sub2d6:true,  renal:false, lipo:false, qt:false },
-  { id:"atenolol",    nome:"Atenolol",    sel:true,  sub2d6:false, renal:true,  lipo:false, qt:false },
-  { id:"metoprolol",  nome:"Metoprolol",  sel:true,  sub2d6:true,  renal:false, lipo:true,  qt:false },
-  { id:"bisoprolol",  nome:"Bisoprolol",  sel:true,  sub2d6:false, renal:false, lipo:false, qt:false },
-  { id:"nebivolol",   nome:"Nebivolol",   sel:true,  sub2d6:true,  renal:false, lipo:true,  qt:false },
-  { id:"betaxolol",   nome:"Betaxolol",   sel:true,  sub2d6:false, renal:false, lipo:false, qt:false },
-  { id:"acebutolol",  nome:"Acebutolol",  sel:true,  sub2d6:false, renal:true,  lipo:false, qt:false },
+const M = (id, nome, extra) => Object.assign({ id, nome }, extra || {});
+const TRIAGE_GROUPS = [
+  { id:"bb", titulo:"Betabloqueadores", subs:[
+    { nome:"Não seletivos", cls:"bb", meds:[
+      // sel = β1-seletivo | sub2d6 = substrato relevante de CYP2D6 | renal = eliminação renal | lipo = metabolismo hepático
+      M("propranolol","Propranolol",{sel:false, sub2d6:true,  renal:false, lipo:true }),
+      M("nadolol","Nadolol",        {sel:false, sub2d6:false, renal:true,  lipo:false}),
+      M("pindolol","Pindolol",      {sel:false, sub2d6:false, renal:false, lipo:false}),
+      M("sotalol","Sotalol",        {sel:false, sub2d6:false, renal:true,  lipo:false}),
+      M("carvedilol","Carvedilol",  {sel:false, sub2d6:true,  renal:false, lipo:true }),
+      M("labetalol","Labetalol",    {sel:false, sub2d6:false, renal:false, lipo:true }),
+      M("timolol","Timolol",        {sel:false, sub2d6:true,  renal:false, lipo:false}),
+    ]},
+    { nome:"β1-seletivos", cls:"bb", meds:[
+      M("atenolol","Atenolol",      {sel:true, sub2d6:false, renal:true,  lipo:false}),
+      M("metoprolol","Metoprolol",  {sel:true, sub2d6:true,  renal:false, lipo:true }),
+      M("bisoprolol","Bisoprolol",  {sel:true, sub2d6:false, renal:false, lipo:false}),
+      M("nebivolol","Nebivolol",    {sel:true, sub2d6:true,  renal:false, lipo:true }),
+      M("betaxolol","Betaxolol",    {sel:true, sub2d6:false, renal:false, lipo:false}),
+      M("acebutolol","Acebutolol",  {sel:true, sub2d6:false, renal:true,  lipo:false}),
+    ]},
+  ]},
+  { id:"has", titulo:"Outros anti-hipertensivos", subs:[
+    { nome:"IECA", cls:"ieca", meds:[ M("captopril","Captopril"), M("enalapril","Enalapril"), M("lisinopril","Lisinopril"), M("ramipril","Ramipril") ]},
+    { nome:"BRA", cls:"bra", meds:[ M("losartana","Losartana"), M("valsartana","Valsartana"), M("olmesartana","Olmesartana"), M("telmisartana","Telmisartana") ]},
+    { nome:"Bloqueadores de canal de cálcio — di-hidropiridínicos", cls:"bccdhp", meds:[ M("anlodipino","Anlodipino"), M("nifedipino","Nifedipino") ]},
+    { nome:"Bloqueadores de canal de cálcio — não di-hidropiridínicos", cls:"bccndhp", meds:[ M("verapamil","Verapamil"), M("diltiazem","Diltiazem") ]},
+    { nome:"Diuréticos tiazídicos e similares", cls:"tiaz", meds:[ M("hidroclorotiazida","Hidroclorotiazida"), M("clortalidona","Clortalidona"), M("indapamida","Indapamida") ]},
+    { nome:"Diurético de alça", cls:"alca", meds:[ M("furosemida","Furosemida") ]},
+    { nome:"Poupadores de potássio", cls:"poupk", meds:[ M("espironolactona","Espironolactona"), M("amilorida","Amilorida") ]},
+    { nome:"Ação central", cls:"central", meds:[ M("clonidina","Clonidina"), M("metildopa","Metildopa") ]},
+  ]},
+  { id:"arr", titulo:"Antiarrítmicos e digitálico", subs:[
+    { nome:"Antiarrítmicos / controle de frequência", cls:"antiarr", meds:[ M("amiodarona","Amiodarona"), M("propafenona","Propafenona"), M("digoxina","Digoxina") ]},
+  ]},
+  { id:"ac", titulo:"Anticoagulantes", subs:[
+    { nome:"Antagonista da vitamina K", cls:"anticoag", meds:[ M("varfarina","Varfarina") ]},
+    { nome:"Anticoagulantes orais diretos (DOAC)", cls:"anticoag", meds:[ M("apixabana","Apixabana",{doac:true}), M("rivaroxabana","Rivaroxabana",{doac:true}), M("dabigatrana","Dabigatrana",{doac:true}), M("edoxabana","Edoxabana",{doac:true}) ]},
+    { nome:"Heparina de baixo peso molecular", cls:"anticoag", meds:[ M("enoxaparina","Enoxaparina") ]},
+  ]},
+  { id:"ap", titulo:"Antiplaquetários", subs:[
+    { nome:"Antiagregantes", cls:"antiplaq", meds:[ M("aas","AAS (dose antiagregante)"), M("clopidogrel","Clopidogrel",{p2y12:true}), M("prasugrel","Prasugrel",{p2y12:true}), M("ticagrelor","Ticagrelor",{p2y12:true}) ]},
+  ]},
+  { id:"est", titulo:"Estatinas", subs:[
+    { nome:"Inibidores da HMG-CoA redutase", cls:"estatina", meds:[ M("sinvastatina","Sinvastatina"), M("atorvastatina","Atorvastatina"), M("rosuvastatina","Rosuvastatina"), M("pravastatina","Pravastatina"), M("lovastatina","Lovastatina"), M("pitavastatina","Pitavastatina"), M("fluvastatina","Fluvastatina") ]},
+  ]},
+  { id:"dm", titulo:"Antidiabéticos", subs:[
+    { nome:"Biguanida", cls:"metf", meds:[ M("metformina","Metformina") ]},
+    { nome:"Sulfonilureias", cls:"su", meds:[ M("glibenclamida","Glibenclamida"), M("gliclazida","Gliclazida"), M("glimepirida","Glimepirida") ]},
+    { nome:"Insulinas", cls:"insulina", meds:[ M("insulina","Insulina (qualquer tipo)") ]},
+    { nome:"Glitazona", cls:"tzd", meds:[ M("pioglitazona","Pioglitazona") ]},
+    { nome:"Inibidores da DPP-4", cls:"dpp4", meds:[ M("sitagliptina","Sitagliptina"), M("vildagliptina","Vildagliptina"), M("saxagliptina","Saxagliptina"), M("linagliptina","Linagliptina") ]},
+    { nome:"Inibidores da SGLT2", cls:"sglt2", meds:[ M("dapagliflozina","Dapagliflozina"), M("empagliflozina","Empagliflozina") ]},
+    { nome:"Agonistas do GLP-1", cls:"glp1", meds:[ M("liraglutida","Liraglutida"), M("semaglutida","Semaglutida") ]},
+  ]},
+  { id:"aine", titulo:"AINEs", subs:[
+    { nome:"Anti-inflamatórios não esteroides", cls:"aine", meds:[ M("ibuprofeno","Ibuprofeno"), M("diclofenaco","Diclofenaco"), M("naproxeno","Naproxeno"), M("cetoprofeno","Cetoprofeno"), M("nimesulida","Nimesulida"), M("meloxicam","Meloxicam"), M("piroxicam","Piroxicam"), M("tenoxicam","Tenoxicam"), M("celecoxibe","Celecoxibe"), M("etoricoxibe","Etoricoxibe") ]},
+  ]},
+  { id:"cort", titulo:"Corticoides sistêmicos", subs:[
+    { nome:"Glicocorticoides", cls:"corticoide", meds:[ M("prednisona","Prednisona"), M("prednisolona","Prednisolona"), M("dexametasona","Dexametasona"), M("betametasona","Betametasona") ]},
+  ]},
+  { id:"analg", titulo:"Analgésicos / antipiréticos", subs:[
+    { nome:"Não opioides", cls:"analg", meds:[ M("dipirona","Dipirona (metamizol)"), M("paracetamol","Paracetamol") ]},
+  ]},
+  { id:"ibp", titulo:"Inibidores da bomba de prótons (IBP)", subs:[
+    { nome:"IBP", cls:"ibp", meds:[ M("omeprazol","Omeprazol"), M("esomeprazol","Esomeprazol"), M("pantoprazol","Pantoprazol"), M("lansoprazol","Lansoprazol"), M("rabeprazol","Rabeprazol"), M("dexlansoprazol","Dexlansoprazol") ]},
+  ]},
+  { id:"isrs", titulo:"ISRS", subs:[
+    { nome:"Inibidores seletivos da recaptação de serotonina", cls:"isrs", meds:[ M("fluoxetina","Fluoxetina"), M("paroxetina","Paroxetina"), M("sertralina","Sertralina"), M("citalopram","Citalopram"), M("escitalopram","Escitalopram"), M("fluvoxamina","Fluvoxamina") ]},
+  ]},
+  { id:"ind", titulo:"Indutores enzimáticos", subs:[
+    { nome:"Fitoterápico e antimicrobiano", cls:"indutor", meds:[ M("hiperico","Erva-de-são-joão (Hypericum)"), M("rifampicina","Rifampicina") ]},
+  ]},
 ];
-const TRIAGE_ISRS = [
-  { id:"fluoxetina",   nome:"Fluoxetina" },
-  { id:"paroxetina",   nome:"Paroxetina" },
-  { id:"sertralina",   nome:"Sertralina" },
-  { id:"citalopram",   nome:"Citalopram" },
-  { id:"escitalopram", nome:"Escitalopram" },
-  { id:"fluvoxamina",  nome:"Fluvoxamina" },
-];
-const TBB_BY_ID = Object.fromEntries(TRIAGE_BB.map(d=>[d.id,d]));
-const TISRS_BY_ID = Object.fromEntries(TRIAGE_ISRS.map(d=>[d.id,d]));
+const TRIAGE_MEDS = [];
+TRIAGE_GROUPS.forEach(g=>g.subs.forEach(s=>s.meds.forEach(m=>{ m.cls = s.cls; m.grupo = g.id; TRIAGE_MEDS.push(m); })));
+const TMED = Object.fromEntries(TRIAGE_MEDS.map(m=>[m.id,m]));
+const TRIAGE_BB = TRIAGE_MEDS.filter(m=>m.cls==="bb");
+const TRIAGE_ISRS = TRIAGE_MEDS.filter(m=>m.cls==="isrs");
 const ISRS_FORTE_2D6 = ["paroxetina","fluoxetina"];
-const ISRS_QT_IDS    = ["citalopram","escitalopram"];
-const ISRS_2C19_IDS  = ["citalopram","escitalopram","sertralina"];
-function triageNome(id){ return (TBB_BY_ID[id]||TISRS_BY_ID[id]||{}).nome || id; }
+const QT_IDS = ["sotalol","amiodarona","citalopram","escitalopram"];
+function triageNome(id){ return (TMED[id]||{}).nome || id; }
 
-let triageState = {
-  gestante:false, asmaDpoc:false, diabetes:false,
+const TRIAGE_EMPTY = () => ({
+  gestante:false, asmaDpoc:false, diabetes:false, idoso:false, ic:false, ulcera:false, avc:false,
   funcaoRenal:"desconhecida", funcaoHepatica:"desconhecida",
-  meds:[], cyp2d6:"desconhecido", cyp2c19:"desconhecido"
-};
+  meds:[], cyp2d6:"desconhecido", cyp2c19:"desconhecido", cyp2c9:"desconhecido",
+  slco1b1:"desconhecido", abcg2:"desconhecido", vkorc1:"desconhecido"
+});
+let triageState = TRIAGE_EMPTY();
+let triageOpen = {};
+let triageBusca = "";
 
 function tHas(id){ return triageState.meds.includes(id); }
 function tSome(ids){ return ids.filter(id=>tHas(id)); }
+function tCls(cls){ return triageState.meds.filter(id=>TMED[id] && TMED[id].cls===cls); }
 function tListar(ids){ return ids.map(triageNome).join(", "); }
 function tBBsel(){ return TRIAGE_BB.filter(b=>tHas(b.id)); }
 
@@ -3127,122 +3195,1045 @@ function runTriagem(){
   const S = triageState;
   const A = [];
   const add = (nivel,categoria,titulo,detalhe,conduta,fonte)=>A.push({nivel,categoria,titulo,detalhe,conduta,fonte});
+  const renalMod = S.funcaoRenal==="moderada", renalGrave = S.funcaoRenal==="grave", renalRed = renalMod||renalGrave;
+  const hep = S.funcaoHepatica==="alterada";
+
   const bbSel = tBBsel();
+  const bb = bbSel.map(b=>b.id);
   const sub2d6 = bbSel.filter(b=>b.sub2d6).map(b=>b.id);
   const naoSel = bbSel.filter(b=>!b.sel).map(b=>b.id);
   const renalBB = bbSel.filter(b=>b.renal).map(b=>b.id);
   const lipoBB = bbSel.filter(b=>b.lipo).map(b=>b.id);
+  const isrs = tCls("isrs"), est = tCls("estatina"), aine = tCls("aine"), cort = tCls("corticoide");
+  const ac = tCls("anticoag"), apq = tCls("antiplaq"), ind = tCls("indutor");
+  const doac = ac.filter(id=>TMED[id].doac), p2y12 = apq.filter(id=>TMED[id].p2y12);
+  const ieca = tCls("ieca"), bra = tCls("bra"), sraa = ieca.concat(bra);
+  const ndhp = tCls("bccndhp"), dhp = tCls("bccdhp");
+  const tiaz = tCls("tiaz"), alca = tCls("alca"), poupk = tCls("poupk"), diur = tiaz.concat(alca);
+  const su = tCls("su"), ins = tCls("insulina"), dpp4 = tCls("dpp4"), sglt2 = tCls("sglt2"), glp1 = tCls("glp1");
+  const hipoglic = su.concat(ins);
+  const antitromb = ac.concat(apq);
+  const indTxt = ind.length ? tListar(ind) : "";
+  const ibp = tCls("ibp");
+  // Gastroproteção: se já há IBP em uso, a conduta reconhece isso
+  const gp = ibp.length ? ` IBP já em uso (${tListar(ibp)}): manter enquanto durar o risco.` : " Considerar gastroproteção com IBP.";
 
-  // 1. Interação CYP2D6: ISRS inibidor forte + betabloqueador substrato
+  /* ---------------- ISRS × Betabloqueadores (regras originais revisadas) ---------------- */
   const isrsF = tSome(ISRS_FORTE_2D6);
   if (isrsF.length && sub2d6.length){
     const grave = sub2d6.includes("metoprolol");
     add(grave?"alto":"moderado","Interação",
       "ISRS inibidor de CYP2D6 + betabloqueador substrato",
-      `${tListar(isrsF)} inibe(m) fortemente o CYP2D6 e aumenta(m) a exposição a ${tListar(sub2d6)}` + (grave?" (metoprolol é especialmente sensível), com risco de bradicardia e hipotensão.":", com risco de bradicardia/hipotensão."),
-      "Monitorar FC e PA. Considerar betabloqueador não dependente de CYP2D6 (ex.: bisoprolol, atenolol) ou ISRS com menor inibição (ex.: sertralina em dose baixa, citalopram/escitalopram). Alinhar com o prescritor.",
-      "Inibição de CYP2D6 por ISRS sobre betabloqueadores substrato");
+      `${tListar(isrsF)} inibe(m) fortemente o CYP2D6 e aumenta(m) a exposição a ${tListar(sub2d6)}` + (grave?" — o metoprolol é especialmente sensível (aumento de várias vezes na exposição), com risco de bradicardia e hipotensão.":", com risco de bradicardia/hipotensão."),
+      "Monitorar FC e PA. Considerar betabloqueador pouco dependente de CYP2D6 (ex.: bisoprolol, atenolol) ou ISRS com menor inibição de CYP2D6 (ex.: citalopram/escitalopram, sertralina em dose baixa). Alinhar com o prescritor.",
+      "Bulas de paroxetina/fluoxetina (inibidores fortes de CYP2D6) e do metoprolol");
   }
-  // 2. PGx CYP2D6 reduzido + betabloqueador substrato
-  if (sub2d6.length && (S.cyp2d6==="pobre"||S.cyp2d6==="intermediario")){
-    add("moderado","Farmacogenômica",
-      "Betabloqueador substrato de CYP2D6 em metabolizador reduzido",
-      `Fenótipo CYP2D6 ${S.cyp2d6} eleva a exposição a ${tListar(sub2d6)}, aumentando o risco de bradicardia/hipotensão.`,
-      "Recomendar início com dose menor e titulação cautelosa, com monitorização de FC e PA.",
-      "CYP2D6 (fenótipo) × betabloqueadores substrato");
+  if (tHas("metoprolol") && S.cyp2d6==="pobre"){
+    add("moderado","Farmacogenômica","Metoprolol em metabolizador pobre de CYP2D6",
+      "Metabolizadores pobres de CYP2D6 têm exposição ao metoprolol várias vezes maior, com risco de bradicardia sintomática.",
+      "Iniciar com a menor dose inicial recomendada e titular com cautela até o efeito clínico; alternativamente, usar outro betabloqueador.",
+      "CPIC — metoprolol e CYP2D6 (diretriz de betabloqueadores, 2024)");
   }
-  // 3. PGx CYP2D6 ultrarrápido
-  if (sub2d6.length && S.cyp2d6==="ultrarrapido"){
-    add("baixo","Farmacogenômica",
-      "Betabloqueador substrato de CYP2D6 em metabolizador ultrarrápido",
-      `Metabolismo ultrarrápido pode reduzir a exposição a ${tListar(sub2d6)} e o controle de FC/PA.`,
-      "Avaliar resposta clínica (FC/PA); se controle insuficiente, discutir ajuste com o prescritor.",
-      "CYP2D6 (fenótipo) × betabloqueadores substrato");
+  if (tHas("metoprolol") && S.cyp2d6==="intermediario"){
+    add("baixo","Farmacogenômica","Metoprolol em metabolizador intermediário de CYP2D6",
+      "Exposição ao metoprolol aumentada; maior chance de bradicardia durante a titulação.",
+      "Se for desejada redução gradual da FC ou houver bradicardia sintomática, titular em passos menores e/ou limitar a dose (DPWG).",
+      "DPWG — metoprolol e CYP2D6");
   }
-  // 4. QT: sotalol + ISRS prolongador de QT
-  const isrsQT = tSome(ISRS_QT_IDS);
-  if (tHas("sotalol") && isrsQT.length){
-    add("alto","Interação",
-      "Sotalol + ISRS prolongador de QT",
-      `Sotalol (classe III) com ${tListar(isrsQT)} soma o risco de prolongamento de QT e torsades de pointes.`,
-      "Evitar a combinação sempre que possível. Se mantida, avaliar ECG/QTc, eletrólitos e considerar ISRS alternativo — contatar prescritor.",
-      "Prolongamento aditivo do intervalo QT");
+  if (tHas("metoprolol") && S.cyp2d6==="ultrarrapido"){
+    add("baixo","Farmacogenômica","Metoprolol em metabolizador ultrarrápido de CYP2D6",
+      "Exposição reduzida ao metoprolol, com possível controle insuficiente de FC/PA. O CPIC não traz recomendação para ultrarrápidos.",
+      "Usar a dose máxima da indicação como alvo; se o efeito for insuficiente, discutir aumento de dose ou betabloqueador alternativo (DPWG).",
+      "DPWG — metoprolol e CYP2D6");
   }
-  // 5. PGx CYP2C19 + ISRS substrato
-  const isrs2c19 = tSome(ISRS_2C19_IDS);
-  if (isrs2c19.length && (S.cyp2c19==="pobre"||S.cyp2c19==="intermediario")){
-    const comSotalol = tHas("sotalol") && isrsQT.length>0;
-    add(comSotalol?"alto":"moderado","Farmacogenômica",
-      "ISRS substrato de CYP2C19 em metabolizador reduzido",
-      `Fenótipo CYP2C19 ${S.cyp2c19} eleva a exposição a ${tListar(isrs2c19)}` + (comSotalol?" — com sotalol associado, o risco de QT prolongado é ainda maior.":" (citalopram/escitalopram: atenção ao QT)."),
-      "Considerar redução da dose máxima conforme diretriz e monitorar. Se houver risco de QT, avaliar ECG/QTc.",
-      "CPIC — ISRS/CYP2C19 (citalopram/escitalopram/sertralina)");
+  const isrsQTsel = tSome(QT_IDS);
+  if (isrsQTsel.length>=2){
+    add("alto","Interação","Associação de fármacos que prolongam o QT",
+      `${tListar(isrsQTsel)}: efeito aditivo de prolongamento do intervalo QT, com risco de torsades de pointes.`,
+      "Evitar a associação sempre que possível. Se mantida: ECG/QTc basal e de controle, corrigir K+/Mg2+ e considerar alternativa. Contatar o prescritor.",
+      "Bulas de sotalol, amiodarona e citalopram/escitalopram (prolongamento de QT dose-dependente)");
   }
-  // 6. CYP1A2: fluvoxamina + propranolol
-  if (tHas("fluvoxamina") && tHas("propranolol")){
-    add("moderado","Interação",
-      "Fluvoxamina + Propranolol",
-      "Fluvoxamina inibe potentemente o CYP1A2 e aumenta a concentração de propranolol, com risco de bradicardia/hipotensão.",
-      "Monitorar FC/PA; considerar ajuste de dose do propranolol ou ISRS alternativo com o prescritor.",
-      "Inibição de CYP1A2 pela fluvoxamina sobre o propranolol");
+  // CYP2C19 × ISRS (CPIC 2023)
+  const citEsc = tSome(["citalopram","escitalopram"]);
+  if (citEsc.length && S.cyp2c19==="pobre"){
+    const comQT = isrsQTsel.length>=2;
+    add(comQT?"alto":"moderado","Farmacogenômica",`${tListar(citEsc)} em metabolizador pobre de CYP2C19`,
+      "Exposição aumentada, com maior risco de efeitos adversos e de prolongamento do QT" + (comQT?" — agravado pelos outros fármacos prolongadores de QT em uso.":"."),
+      "Considerar antidepressivo não metabolizado predominantemente por CYP2C19. Se mantido, iniciar com dose menor, titular devagar e usar dose de manutenção ~50% menor.",
+      "CPIC — ISRS e CYP2C19/CYP2D6/CYP2B6 (2023)");
   }
-  // 7. Duplicidade: dois betabloqueadores
+  if (citEsc.length && S.cyp2c19==="intermediario"){
+    add("baixo","Farmacogenômica",`${tListar(citEsc)} em metabolizador intermediário de CYP2C19`,
+      "Exposição moderadamente aumentada.",
+      "Iniciar com a dose habitual; considerar titulação mais lenta e dose de manutenção menor.",
+      "CPIC — ISRS e CYP2C19 (2023)");
+  }
+  if (citEsc.length && S.cyp2c19==="ultrarrapido"){
+    add("moderado","Farmacogenômica",`${tListar(citEsc)} em metabolizador ultrarrápido de CYP2C19`,
+      "Exposição reduzida, com maior chance de falha terapêutica.",
+      "Considerar antidepressivo não metabolizado predominantemente por CYP2C19.",
+      "CPIC — ISRS e CYP2C19 (2023)");
+  }
+  if (citEsc.length && S.cyp2c19==="rapido"){
+    add("baixo","Farmacogenômica",`${tListar(citEsc)} em metabolizador rápido de CYP2C19`,
+      "Exposição levemente reduzida.",
+      "Iniciar com a dose habitual; se resposta inadequada, considerar dose maior ou alternativa não dependente de CYP2C19.",
+      "CPIC — ISRS e CYP2C19 (2023)");
+  }
+  if (tHas("sertralina") && S.cyp2c19==="pobre"){
+    add("moderado","Farmacogenômica","Sertralina em metabolizador pobre de CYP2C19",
+      "Exposição à sertralina aumentada.",
+      "Considerar dose inicial 50% menor e titular conforme resposta, ou alternativa não metabolizada predominantemente por CYP2C19 (DPWG: não exceder 75 mg/dia).",
+      "CPIC — ISRS (2023); DPWG — sertralina e CYP2C19");
+  }
+  if (tHas("sertralina") && S.cyp2c19==="intermediario"){
+    add("baixo","Farmacogenômica","Sertralina em metabolizador intermediário de CYP2C19",
+      "Exposição levemente aumentada.",
+      "Iniciar com a dose habitual; considerar titulação mais lenta e dose de manutenção menor.",
+      "CPIC — ISRS (2023)");
+  }
+  if (tHas("paroxetina") && S.cyp2d6==="pobre"){
+    add("moderado","Farmacogenômica","Paroxetina em metabolizador pobre de CYP2D6",
+      "Exposição à paroxetina aumentada.",
+      "Considerar dose inicial 50% menor, titulação mais lenta e dose de manutenção 50% menor.",
+      "CPIC — ISRS e CYP2D6 (2023)");
+  }
+  if (tHas("paroxetina") && S.cyp2d6==="ultrarrapido"){
+    add("moderado","Farmacogenômica","Paroxetina em metabolizador ultrarrápido de CYP2D6",
+      "Exposição reduzida, com maior chance de falha terapêutica.",
+      "Considerar antidepressivo não metabolizado predominantemente por CYP2D6.",
+      "CPIC — ISRS e CYP2D6 (2023)");
+  }
+  if (tHas("fluvoxamina") && S.cyp2d6==="pobre"){
+    add("baixo","Farmacogenômica","Fluvoxamina em metabolizador pobre de CYP2D6",
+      "Exposição à fluvoxamina aumentada.",
+      "Considerar dose inicial 25–50% menor com titulação mais lenta, ou alternativa não metabolizada por CYP2D6.",
+      "CPIC — ISRS e CYP2D6 (2023)");
+  }
+  const bbFluvox = tSome(["propranolol","metoprolol"]);
+  if (tHas("fluvoxamina") && bbFluvox.length){
+    add("moderado","Interação",`Fluvoxamina + ${tListar(bbFluvox)}`,
+      `A fluvoxamina aumenta a concentração de ${tListar(bbFluvox)} (inibição de CYP1A2/CYP2D6), com risco de bradicardia/hipotensão.`,
+      "A bula orienta reduzir a dose do betabloqueador e titular com mais cautela; monitorar FC/PA.",
+      "Bula da fluvoxamina (FDA)");
+  }
+  if (tHas("fluvoxamina") && tHas("diltiazem")){
+    add("baixo","Interação","Fluvoxamina + diltiazem",
+      "Há relato de bradicardia com a associação.",
+      "Monitorar FC.",
+      "Bula da fluvoxamina (FDA)");
+  }
   if (bbSel.length>=2){
-    add("alto","Duplicidade",
-      "Dois betabloqueadores simultâneos",
-      `${tListar(bbSel.map(b=>b.id))}: efeito aditivo com risco de bradicardia, hipotensão e bloqueio AV.`,
-      "Manter apenas um betabloqueador, salvo indicação específica documentada. Confirmar com o prescritor.",
-      "Duplicidade terapêutica (dois betabloqueadores)");
+    add("alto","Duplicidade","Dois betabloqueadores simultâneos",
+      `${tListar(bb)}: efeito aditivo com risco de bradicardia, hipotensão e bloqueio AV.`,
+      "Manter apenas um betabloqueador, salvo indicação específica documentada (ex.: colírio de timolol + oral exige avaliação). Confirmar com o prescritor.",
+      "Duplicidade terapêutica");
   }
-  // 8. Duplicidade: dois ISRS
-  const isrsSel = tSome(TRIAGE_ISRS.map(i=>i.id));
-  if (isrsSel.length>=2){
-    add("moderado","Duplicidade",
-      "Dois ISRS simultâneos",
-      `${tListar(isrsSel)}: sem benefício aditivo e com risco de síndrome serotoninérgica.`,
-      "Manter apenas um ISRS. Em troca, atentar ao washout (a fluoxetina tem meia-vida longa). Alinhar com o prescritor.",
-      "Duplicidade terapêutica (dois ISRS) / risco serotoninérgico");
+  if (isrs.length>=2){
+    add("moderado","Duplicidade","Dois ISRS simultâneos",
+      `${tListar(isrs)}: sem benefício aditivo e com risco de síndrome serotoninérgica.`,
+      "Manter apenas um ISRS. Em trocas, atentar ao washout (a fluoxetina tem meia-vida longa). Alinhar com o prescritor.",
+      "Duplicidade terapêutica / bulas dos ISRS");
   }
-  // 9. Não seletivo + asma/DPOC
   if (naoSel.length && S.asmaDpoc){
-    add("alto","Contraindicação",
-      "Betabloqueador não seletivo em asma/DPOC",
+    add("alto","Contraindicação","Betabloqueador não seletivo em asma/DPOC",
       `${tListar(naoSel)} pode(m) causar broncoespasmo por bloqueio β2.`,
-      "Preferir β1-seletivo em dose baixa quando imprescindível; evitar não seletivos. Sinalizar ao prescritor.",
-      "Betabloqueador não seletivo em asma/DPOC");
+      "Evitar não seletivos; se um betabloqueador for imprescindível, preferir β1-seletivo em dose baixa. Sinalizar ao prescritor.",
+      "Bulas dos betabloqueadores não seletivos");
   }
-  // 10. Não seletivo + diabetes
-  if (naoSel.length && S.diabetes){
-    add("moderado","Interação",
-      "Betabloqueador não seletivo em diabetes",
-      `${tListar(naoSel)} pode(m) mascarar sinais de hipoglicemia e retardar a recuperação glicêmica.`,
-      "Preferir β1-seletivo; orientar o paciente sobre sinais de hipoglicemia (a sudorese costuma ser preservada).",
-      "Betabloqueador não seletivo em diabetes");
+  if (naoSel.length && (S.diabetes || hipoglic.length)){
+    add("moderado","Interação","Betabloqueador não seletivo em paciente com diabetes / hipoglicemiante",
+      `${tListar(naoSel)} pode(m) mascarar sinais adrenérgicos de hipoglicemia (taquicardia, tremor) e retardar a recuperação glicêmica` + (hipoglic.length?` — atenção com ${tListar(hipoglic)}.`:"."),
+      "Preferir β1-seletivo; orientar que a sudorese costuma ser preservada e reforçar a automonitorização glicêmica.",
+      "Bulas dos betabloqueadores não seletivos");
   }
-  // 11. Dose × órgão: eliminação renal
-  if (renalBB.length && (S.funcaoRenal==="moderada"||S.funcaoRenal==="grave")){
-    const sotalolGrave = renalBB.includes("sotalol") && S.funcaoRenal==="grave";
-    add(sotalolGrave?"alto":"moderado","Dose × órgão",
-      "Betabloqueador de eliminação renal em disfunção renal",
+  if (renalBB.length && renalRed){
+    const sotalolGrave = renalBB.includes("sotalol") && renalGrave;
+    add(sotalolGrave?"alto":"moderado","Dose × órgão","Betabloqueador de eliminação renal em disfunção renal",
       `${tListar(renalBB)} acumula(m) na disfunção renal, com risco de bradicardia` + (renalBB.includes("sotalol")?" e prolongamento de QT (sotalol).":"."),
-      "Recomendar ajuste de dose/intervalo pela função renal; para sotalol, monitorar QTc. Confirmar com o prescritor.",
-      "Betabloqueadores de eliminação renal (atenolol/nadolol/sotalol)");
+      "Ajustar dose/intervalo pela função renal conforme bula; para sotalol, monitorar QTc. Confirmar com o prescritor.",
+      "Bulas de atenolol, nadolol, sotalol e acebutolol");
   }
-  // 12. Dose × órgão: metabolismo hepático
-  if (lipoBB.length && S.funcaoHepatica==="alterada"){
-    add("moderado","Dose × órgão",
-      "Betabloqueador lipofílico em disfunção hepática",
+  if (lipoBB.length && hep){
+    add("moderado","Dose × órgão","Betabloqueador de metabolismo hepático em disfunção hepática",
       `${tListar(lipoBB)} tem metabolismo hepático; a disfunção eleva a exposição e o risco de bradicardia/hipotensão.`,
       "Iniciar com dose menor e titular com cautela, monitorando FC/PA.",
-      "Betabloqueadores lipofílicos de metabolismo hepático");
+      "Bulas dos betabloqueadores lipofílicos");
   }
-  // 13. Contraindicação: atenolol na gestação
   if (S.gestante && tHas("atenolol")){
-    add("moderado","Contraindicação",
-      "Atenolol em gestante",
-      "Atenolol associa-se a restrição de crescimento fetal, sobretudo no início da gestação.",
-      "Discutir alternativa com o prescritor (ex.: labetalol/metildopa, conforme indicação).",
-      "Atenolol na gestação");
+    add("moderado","Gestação","Atenolol em gestante",
+      "O atenolol pode causar dano fetal: o uso a partir do 2º trimestre associou-se a recém-nascidos pequenos para a idade gestacional.",
+      "Discutir alternativa com o prescritor (ex.: metildopa, labetalol ou nifedipino, conforme indicação).",
+      "Bula do atenolol");
+  }
+
+  /* ---------------- Sangramento ---------------- */
+  if (ac.length>=2){
+    add("alto","Duplicidade","Dois anticoagulantes simultâneos",
+      `${tListar(ac)}: risco de sangramento muito aumentado.`,
+      "Em geral não se associam, exceto em transição programada (ex.: enoxaparina até INR-alvo da varfarina). Confirmar o esquema e a data de término com o prescritor.",
+      "Bulas dos anticoagulantes");
+  }
+  if (ac.length && apq.length){
+    add("alto","Interação","Anticoagulante + antiplaquetário",
+      `${tListar(ac)} com ${tListar(apq)}: aumento importante do risco de sangramento.`,
+      "Confirmar indicação e duração (pode ser intencional, ex.: FA + angioplastia recente, por tempo limitado). Orientar sinais de sangramento." + gp,
+      "Bulas de varfarina, DOACs e antiplaquetários");
+  }
+  if (ac.length && aine.length){
+    add("alto","Interação","Anticoagulante + AINE",
+      `${tListar(aine)} com ${tListar(ac)}: soma de efeito antiplaquetário e lesão de mucosa, com risco de sangramento GI.`,
+      "Evitar AINE. Para dor, preferir paracetamol na menor dose eficaz e por curto período (com varfarina, monitorar INR).",
+      "Bulas de varfarina e DOACs");
+  }
+  if (apq.length && aine.length){
+    add("moderado","Interação","Antiplaquetário + AINE",
+      `${tListar(aine)} com ${tListar(apq)}: risco aditivo de sangramento gastrointestinal.`,
+      "Evitar uso prolongado do AINE; se necessário, usar menor dose pelo menor tempo." + gp,
+      "Bulas do AAS, clopidogrel, prasugrel e ticagrelor");
+  }
+  if (tHas("aas") && tHas("ibuprofeno")){
+    add("moderado","Interação","Ibuprofeno pode reduzir o efeito cardioprotetor do AAS",
+      "O ibuprofeno compete pelo sítio da COX-1 e pode impedir a inibição plaquetária irreversível do AAS em baixa dose quando tomado antes dele.",
+      "Em uso ocasional, tomar o ibuprofeno ≥30 min após o AAS de liberação imediata ou >8 h antes dele. Em uso regular, preferir analgésico alternativo.",
+      "FDA (2006) — interação entre ibuprofeno e AAS em baixa dose");
+  }
+  if (tHas("aas") && tHas("dipirona")){
+    add("moderado","Interação","Dipirona pode reduzir o efeito antiagregante do AAS",
+      "A dipirona, tomada junto com o AAS em baixa dose, pode reduzir o efeito do AAS na agregação plaquetária.",
+      "Usar com cautela em quem toma AAS para cardioproteção; se a dipirona for necessária, preferir tomá-la após o AAS e avaliar analgésico alternativo para uso regular.",
+      "Bula da dipirona (ANVISA); EMA/PRAC");
+  }
+  if (isrs.length && (ac.length || apq.length || aine.length)){
+    const outros = ac.concat(apq, aine);
+    add(ac.length && aine.length ? "alto" : "moderado","Interação","ISRS + fármaco que aumenta sangramento",
+      `${tListar(isrs)} reduz(em) a serotonina plaquetária; com ${tListar(outros)} aumenta o risco de sangramento, sobretudo GI.`,
+      "Orientar sinais de sangramento; com varfarina, monitorar INR." + gp,
+      "Bulas dos ISRS (risco de sangramento com AINEs, AAS e anticoagulantes)");
+  }
+  if (cort.length && aine.length){
+    add("moderado","Interação","Corticoide + AINE",
+      `${tListar(cort)} com ${tListar(aine)}: aumento do risco de úlcera péptica e sangramento GI.`,
+      "Evitar a associação ou usar pelo menor tempo." + gp,
+      "Bulas dos AINEs (corticoide oral aumenta o risco de sangramento GI)");
+  }
+  if (S.ulcera && aine.length){
+    add("alto","Contraindicação","AINE em paciente com úlcera/sangramento GI prévio",
+      `${tListar(aine)}: alto risco de recorrência de úlcera e sangramento.`,
+      "Evitar AINE; se indispensável, menor dose pelo menor tempo com IBP. Preferir paracetamol/dipirona para analgesia.",
+      "Bulas dos AINEs; Critérios de Beers 2023");
+  }
+  if (S.ulcera && antitromb.length){
+    add("moderado","Precaução","Antitrombótico em paciente com úlcera/sangramento GI prévio",
+      `${tListar(antitromb)}: maior risco de novo sangramento GI.`,
+      "Orientar sinais de alerta (melena, hematêmese)." + gp,
+      "Bulas dos antitrombóticos");
+  }
+  if (S.idoso && aine.length){
+    add("moderado","Idoso","AINE em idoso",
+      `${tListar(aine)}: maior risco de sangramento GI, lesão renal, retenção hídrica e piora da PA/IC em idosos.`,
+      "Evitar uso crônico, salvo se as alternativas falharem e com gastroproteção. Preferir paracetamol.",
+      "Critérios de Beers AGS 2023");
+  }
+
+  /* ---------------- Varfarina ---------------- */
+  if (tHas("varfarina") && tHas("amiodarona")){
+    add("alto","Interação","Varfarina + amiodarona",
+      "A amiodarona inibe CYP2C9/CYP3A4 e aumenta muito o efeito da varfarina (efeito pode durar meses após suspensão).",
+      "Reduzir a dose de varfarina em ~1/3 a 1/2 ao iniciar amiodarona e monitorar INR semanalmente nas primeiras semanas.",
+      "Bulas da amiodarona e da varfarina");
+  }
+  const isrs2c9 = tSome(["fluvoxamina","fluoxetina"]);
+  if (tHas("varfarina") && isrs2c9.length){
+    add(tHas("fluvoxamina")?"alto":"moderado","Interação",`Varfarina + ${tListar(isrs2c9)}`,
+      `${tListar(isrs2c9)} inibe(m) o CYP2C9 e pode(m) aumentar a concentração de varfarina, somando-se ao risco de sangramento dos ISRS.`,
+      "Monitorar INR ao iniciar, ajustar ou suspender o ISRS; considerar ISRS com menor potencial de interação (ex.: sertralina/citalopram/escitalopram).",
+      "Bulas da fluvoxamina e da fluoxetina");
+  }
+  if (tHas("varfarina") && tHas("propafenona")){
+    add("moderado","Interação","Varfarina + propafenona",
+      "A propafenona aumenta a concentração plasmática da varfarina e prolonga o tempo de protrombina.",
+      "Monitorar INR e ajustar a dose de varfarina.",
+      "Bula da propafenona");
+  }
+  if (tHas("varfarina") && tHas("paracetamol")){
+    add("moderado","Interação","Varfarina + paracetamol de uso regular",
+      "O uso regular de paracetamol (ex.: >2 g/dia por vários dias) pode elevar o INR.",
+      "Uso eventual é aceitável; em uso regular, monitorar INR.",
+      "Bula/rotulagem do paracetamol; Hylek et al., JAMA 1998");
+  }
+  const estINR = tSome(["sinvastatina","rosuvastatina","lovastatina","fluvastatina"]);
+  if (tHas("varfarina") && estINR.length){
+    add("baixo","Interação",`Varfarina + ${tListar(estINR)}`,
+      "Pequeno aumento do INR descrito ao iniciar ou ajustar a estatina.",
+      "Monitorar INR ao iniciar ou mudar a dose da estatina.",
+      "Bulas de sinvastatina, rosuvastatina, lovastatina e fluvastatina");
+  }
+  if (tHas("varfarina") && ind.length){
+    add("alto","Interação",`Varfarina + ${indTxt}`,
+      `${indTxt} induz(em) o metabolismo da varfarina (CYP2C9/3A4/1A2), reduzindo de forma importante o INR. Ao suspender o indutor, o INR pode subir.`,
+      "Evitar a associação; se inevitável, monitorar INR de perto e reajustar a dose, inclusive após a suspensão do indutor.",
+      "Bulas da varfarina e da rifampicina; monografia do Hypericum (EMA)");
+  }
+  if (tHas("varfarina") && (S.cyp2c9==="int15"||S.cyp2c9==="int10"||S.cyp2c9==="pobre"||S.vkorc1==="GA"||S.vkorc1==="AA")){
+    const forte = S.cyp2c9==="pobre" || S.vkorc1==="AA";
+    add(forte?"alto":"moderado","Farmacogenômica","Varfarina com genótipo de maior sensibilidade (CYP2C9/VKORC1)",
+      `Perfil informado — CYP2C9: ${S.cyp2c9}; VKORC1 −1639: ${S.vkorc1}. Esses genótipos reduzem a dose necessária e aumentam o risco de INR elevado/sangramento no início.`,
+      "Calcular dose inicial por algoritmo farmacogenético (ex.: warfarindosing.org / CPIC) e monitorar INR com frequência. DPWG: VKORC1 −1639 AA → 60% da dose inicial padrão.",
+      "CPIC — varfarina e CYP2C9/VKORC1/CYP4F2 (2017); DPWG — varfarina");
+  }
+
+  /* ---------------- DOAC / heparina ---------------- */
+  if (doac.length && ind.length){
+    add("alto","Interação",`${tListar(doac)} + ${indTxt}`,
+      `${indTxt} induz(em) CYP3A4 e/ou P-gp e reduz(em) significativamente a exposição ao DOAC, com risco de trombose/AVC.`,
+      "Evitar a associação; discutir anticoagulante alternativo com o prescritor.",
+      "Bulas de apixabana, rivaroxabana, dabigatrana e edoxabana");
+  }
+  if (tHas("dabigatrana") && tHas("verapamil")){
+    add("moderado","Interação","Dabigatrana + verapamil",
+      "O verapamil inibe a P-gp e aumenta a exposição à dabigatrana.",
+      "Em FA, a bula europeia recomenda 110 mg 2x/dia com verapamil, tomados juntos. Monitorar sinais de sangramento, especialmente com disfunção renal.",
+      "Bula da dabigatrana (EMA/SmPC)");
+  }
+  if (tHas("dabigatrana") && renalRed){
+    add(renalGrave?"alto":"moderado","Dose × órgão","Dabigatrana em disfunção renal",
+      renalGrave ? "A dabigatrana tem ~80% de eliminação renal. Com ClCr <30 mL/min, a bula europeia/brasileira a contraindica (o FDA admite 75 mg 2x/dia com ClCr 15–30 em FA, sem inibidor de P-gp)." : "ClCr 30–50 mL/min aumenta a exposição à dabigatrana e o risco de sangramento.",
+      renalGrave ? "Contatar o prescritor para reavaliar o anticoagulante." : "Avaliar dose reduzida (110 mg 2x/dia em FA, conforme risco de sangramento); com inibidor de P-gp, reduzir a dose ou evitar (FDA). Monitorar a função renal.",
+      "Bula da dabigatrana (FDA e EMA/SmPC)");
+  }
+  const xa = tSome(["rivaroxabana","apixabana","edoxabana"]);
+  if (xa.length && renalRed){
+    add("moderado","Dose × órgão",`${tListar(xa)} em disfunção renal`,
+      "A dose de inibidores do fator Xa depende da função renal (e, na apixabana, também da idade e do peso). Com ClCr <15 mL/min não são recomendados.",
+      "Conferir o critério de dose da bula para a indicação (ex.: rivaroxabana 15 mg/dia e edoxabana 30 mg/dia em FA com ClCr 15–50; apixabana 2,5 mg 2x/dia se ≥2 de: idade ≥80, peso ≤60 kg, creatinina ≥1,5 mg/dL).",
+      "Bulas de rivaroxabana, apixabana e edoxabana");
+  }
+  if (tHas("enoxaparina") && renalGrave){
+    add("moderado","Dose × órgão","Enoxaparina com ClCr <30 mL/min",
+      "Acúmulo da enoxaparina na insuficiência renal grave, com risco de sangramento.",
+      "Ajustar conforme bula (ex.: dose terapêutica 1 mg/kg 1x/dia em vez de 12/12 h).",
+      "Bula da enoxaparina");
+  }
+  if ((doac.length || tHas("varfarina")) && hep){
+    add("moderado","Dose × órgão","Anticoagulante oral em disfunção hepática",
+      `${tListar(doac.concat(tSome(["varfarina"])))}: hepatopatia aumenta o risco de sangramento (coagulopatia) e altera a exposição.`,
+      "Conferir a classificação Child-Pugh na bula (ex.: rivaroxabana contraindicada em hepatopatia com coagulopatia/Child B–C). Com varfarina, monitorar INR mais vezes.",
+      "Bulas dos anticoagulantes orais");
+  }
+  if (S.gestante && (doac.length || tHas("varfarina"))){
+    add("alto","Gestação","Anticoagulante oral na gestação",
+      `${tListar(doac.concat(tSome(["varfarina"])))}: a varfarina é teratogênica (contraindicada, exceto situações específicas como prótese valvar mecânica de alto risco) e os DOACs não são recomendados.`,
+      "Encaminhar ao prescritor; a heparina de baixo peso molecular é a opção usual na gestação.",
+      "Bulas da varfarina e dos DOACs");
+  }
+  if (S.idoso && tHas("varfarina")){
+    add("baixo","Idoso","Varfarina em idoso",
+      "Maior risco de sangramento importante (sobretudo intracraniano) e de interações do que os DOACs.",
+      "Evitar iniciar varfarina como 1ª escolha para FA/TEV, salvo se DOAC contraindicado. Em usuários de longa data com INR bem controlado, a continuação é aceitável.",
+      "Critérios de Beers AGS 2023");
+  }
+  if (S.idoso && tHas("rivaroxabana")){
+    add("baixo","Idoso","Rivaroxabana em idoso",
+      "Maior risco de sangramento importante e GI que outros DOACs no uso prolongado.",
+      "Para uso prolongado em FA/TEV, preferir apixabana ou dabigatrana (com função renal reduzida, apenas apixabana). A rivaroxabana pode ser considerada quando a dose única diária for importante para a adesão.",
+      "Critérios de Beers AGS 2023");
+  }
+  if (S.idoso && tHas("aas")){
+    add("baixo","Idoso","AAS em idoso: conferir a indicação",
+      "Na prevenção primária, o risco de sangramento supera o benefício em idosos.",
+      "Confirmar se o AAS é prevenção secundária (ex.: IAM, AVC, stent prévio). Se for prevenção primária, discutir a desprescrição com o prescritor.",
+      "Critérios de Beers AGS 2023; USPSTF 2022");
+  }
+
+  /* ---------------- Antiplaquetários ---------------- */
+  if (p2y12.length>=2){
+    add("alto","Duplicidade","Dois inibidores de P2Y12",
+      `${tListar(p2y12)}: sem indicação de uso simultâneo (exceto na transição entre eles).`,
+      "Manter apenas um inibidor de P2Y12 e confirmar o esquema com o prescritor.",
+      "Bulas de clopidogrel, prasugrel e ticagrelor");
+  }
+  if (tHas("clopidogrel") && (S.cyp2c19==="pobre"||S.cyp2c19==="intermediario")){
+    add("alto","Farmacogenômica",`Clopidogrel em metabolizador ${S.cyp2c19==="pobre"?"pobre":"intermediário"} de CYP2C19`,
+      "Menor formação do metabólito ativo, com menor inibição plaquetária e maior risco de eventos cardiovasculares (ex.: trombose de stent).",
+      "Indicações cardiovasculares: preferir prasugrel ou ticagrelor se não houver contraindicação. Indicações neurovasculares: considerar outro inibidor de P2Y12. Discutir com o prescritor.",
+      "CPIC — clopidogrel e CYP2C19 (2022)");
+  }
+  const isrs2c19inib = tSome(["fluvoxamina","fluoxetina"]);
+  if (tHas("clopidogrel") && isrs2c19inib.length){
+    add("moderado","Interação",`Clopidogrel + ${tListar(isrs2c19inib)}`,
+      `${tListar(isrs2c19inib)} inibe(m) o CYP2C19 e pode(m) reduzir a ativação do clopidogrel, além de somar risco de sangramento.`,
+      "Considerar ISRS com menor inibição de CYP2C19 (ex.: sertralina, conforme perfil) e alinhar com o prescritor.",
+      "Bula do clopidogrel (evitar inibidores de CYP2C19)");
+  }
+  const estTica = tSome(["sinvastatina","lovastatina","rosuvastatina"]);
+  if (tHas("ticagrelor") && estTica.length){
+    add("moderado","Interação",`Ticagrelor + ${tListar(estTica)}`,
+      "O ticagrelor aumenta a exposição a essas estatinas. Pacientes com sinvastatina ou lovastatina >40 mg/dia, ou rosuvastatina >20 mg/dia, podem ter mais efeitos adversos da estatina (miopatia).",
+      "Conferir a dose: sinvastatina/lovastatina ≤40 mg/dia e rosuvastatina ≤20 mg/dia; se precisar de mais potência, discutir alternativa (ex.: atorvastatina, pravastatina).",
+      "Bula do ticagrelor (FDA)");
+  }
+  if (tHas("ticagrelor") && ind.length){
+    add("alto","Interação",`Ticagrelor + ${indTxt}`,
+      `${indTxt} induz(em) o CYP3A4 e reduz(em) substancialmente a exposição e a eficácia do ticagrelor.`,
+      "Evitar a associação; discutir alternativa com o prescritor.",
+      "Bula do ticagrelor (evitar indutores fortes de CYP3A)");
+  }
+  if (tHas("ticagrelor") && tHas("aas")){
+    add("baixo","Interação","Ticagrelor + AAS: conferir a dose do AAS",
+      "Doses de manutenção de AAS acima de 100 mg/dia reduzem a eficácia do ticagrelor.",
+      "Confirmar AAS de manutenção de 75–100 mg/dia.",
+      "Bula do ticagrelor (advertência em destaque)");
+  }
+  if (tHas("ticagrelor") && tHas("digoxina")){
+    add("baixo","Interação","Ticagrelor + digoxina",
+      "O ticagrelor (inibidor de P-gp) aumenta os níveis de digoxina.",
+      "Monitorar clínica e nível sérico de digoxina ao iniciar ou alterar o ticagrelor.",
+      "Bula do ticagrelor");
+  }
+  if (tHas("prasugrel") && S.avc){
+    add("alto","Contraindicação","Prasugrel com AVC/AIT prévio",
+      "Em pacientes com AVC ou AIT prévio, o prasugrel aumentou o sangramento intracraniano sem benefício clínico.",
+      "Contraindicado — contatar o prescritor para trocar o antiplaquetário.",
+      "Bula do prasugrel (advertência em destaque)");
+  }
+  if (tHas("prasugrel") && S.idoso){
+    add("baixo","Idoso","Prasugrel em idoso",
+      "Com ≥75 anos, o prasugrel geralmente não é recomendado pelo maior risco de sangramento (exceto alto risco, ex.: diabetes ou IAM prévio).",
+      "Confirmar a idade; se ≥75 anos, discutir a indicação com o prescritor. Peso <60 kg: dose de manutenção de 5 mg.",
+      "Bula do prasugrel");
+  }
+
+  /* ---------------- Estatinas ---------------- */
+  if (est.length>=2){
+    add("moderado","Duplicidade","Duas estatinas simultâneas",
+      `${tListar(est)}: sem benefício adicional e com maior risco de miopatia.`,
+      "Manter apenas uma estatina, na potência adequada ao risco cardiovascular.",
+      "Duplicidade terapêutica");
+  }
+  if (tHas("sinvastatina") && tHas("amiodarona")){
+    add("alto","Interação","Sinvastatina + amiodarona",
+      "A amiodarona aumenta a exposição à sinvastatina, com risco de miopatia/rabdomiólise.",
+      "Não exceder sinvastatina 20 mg/dia ou trocar por estatina não dependente de CYP3A4.",
+      "Bula da sinvastatina (FDA)");
+  }
+  if (tHas("lovastatina") && tHas("amiodarona")){
+    add("moderado","Interação","Lovastatina + amiodarona",
+      "A amiodarona aumenta a exposição à lovastatina, com risco de miopatia.",
+      "Não exceder lovastatina 40 mg/dia.",
+      "Bula da lovastatina (FDA)");
+  }
+  if (tHas("sinvastatina") && ndhp.length){
+    add("alto","Interação",`Sinvastatina + ${tListar(ndhp)}`,
+      `${tListar(ndhp)} inibe(m) o CYP3A4 e aumenta(m) a exposição à sinvastatina, com risco de miopatia.`,
+      "Não exceder sinvastatina 10 mg/dia ou trocar por estatina não dependente de CYP3A4 (ex.: rosuvastatina, pravastatina).",
+      "Bula da sinvastatina (FDA)");
+  }
+  if (tHas("lovastatina") && ndhp.length){
+    add("moderado","Interação",`Lovastatina + ${tListar(ndhp)}`,
+      `${tListar(ndhp)} aumenta(m) a exposição à lovastatina.`,
+      "Não exceder lovastatina 20 mg/dia.",
+      "Bula da lovastatina (FDA)");
+  }
+  if (tHas("sinvastatina") && tHas("anlodipino")){
+    add("moderado","Interação","Sinvastatina + anlodipino",
+      "O anlodipino aumenta a exposição à sinvastatina.",
+      "Não exceder sinvastatina 20 mg/dia.",
+      "Bula da sinvastatina (FDA)");
+  }
+  const est3a4 = tSome(["sinvastatina","atorvastatina","lovastatina"]);
+  if (est3a4.length && ind.length){
+    add("moderado","Interação",`${tListar(est3a4)} + ${indTxt}`,
+      `${indTxt} induz(em) o CYP3A4 e reduz(em) a exposição e o efeito hipolipemiante de ${tListar(est3a4)}.`,
+      "Monitorar perfil lipídico; considerar estatina menos dependente de CYP3A4. Com rifampicina e atorvastatina, a bula orienta tomar os dois ao mesmo tempo.",
+      "Bulas da sinvastatina, atorvastatina e rifampicina");
+  }
+  // SLCO1B1 / ABCG2 / CYP2C9 × estatinas (CPIC 2022)
+  const slDim = S.slco1b1==="diminuida", slPob = S.slco1b1==="pobre";
+  if (tHas("sinvastatina") && (slDim||slPob)){
+    add(slPob?"alto":"moderado","Farmacogenômica","Sinvastatina com função reduzida de SLCO1B1",
+      "Maior exposição à sinvastatina ácida e maior risco de miopatia.",
+      slPob ? "Prescrever estatina alternativa conforme a potência desejada." : "Preferir estatina alternativa; se a sinvastatina for necessária, limitar a <20 mg/dia.",
+      "CPIC — estatinas e SLCO1B1/ABCG2/CYP2C9 (2022)");
+  }
+  if (tHas("lovastatina") && (slDim||slPob)){
+    add(slPob?"alto":"moderado","Farmacogenômica","Lovastatina com função reduzida de SLCO1B1",
+      "Maior exposição e risco de miopatia.",
+      slPob ? "Prescrever estatina alternativa." : "Preferir estatina alternativa; se necessária, limitar a <20 mg/dia.",
+      "CPIC — estatinas (2022)");
+  }
+  if (tHas("atorvastatina") && (slDim||slPob)){
+    add("moderado","Farmacogenômica","Atorvastatina com função reduzida de SLCO1B1",
+      "Maior exposição e possível aumento do risco de miopatia, sobretudo em doses maiores.",
+      slPob ? "Dose inicial ≤20 mg/dia; ajustar pela diretriz da doença." : "Dose inicial ≤40 mg/dia; ajustar pela diretriz da doença.",
+      "CPIC — estatinas (2022)");
+  }
+  if (tHas("pitavastatina") && (slDim||slPob)){
+    add("moderado","Farmacogenômica","Pitavastatina com função reduzida de SLCO1B1",
+      "Maior exposição e risco de miopatia.",
+      slPob ? "Dose inicial ≤1 mg/dia; se precisar de mais potência, considerar alternativa ou terapia combinada." : "Dose inicial ≤2 mg/dia.",
+      "CPIC — estatinas (2022)");
+  }
+  if (tHas("pravastatina") && slPob){
+    add("baixo","Farmacogenômica","Pravastatina com função pobre de SLCO1B1",
+      "Maior exposição; risco de miopatia sobretudo acima de 40 mg/dia.",
+      "Dose inicial ≤40 mg/dia.",
+      "CPIC — estatinas (2022)");
+  }
+  if (tHas("rosuvastatina") && (slPob || S.abcg2==="pobre")){
+    const ambos = S.abcg2==="pobre" && (slPob||slDim);
+    add("moderado","Farmacogenômica","Rosuvastatina com função reduzida de SLCO1B1/ABCG2",
+      "Maior exposição à rosuvastatina e risco de miopatia.",
+      ambos ? "ABCG2 pobre + SLCO1B1 reduzida/pobre: dose inicial ≤10 mg/dia." : "Dose inicial ≤20 mg/dia; se precisar de mais, considerar terapia combinada (ex.: + ezetimiba).",
+      "CPIC — estatinas (2022)");
+  }
+  const c9IM = S.cyp2c9==="int15"||S.cyp2c9==="int10", c9PM = S.cyp2c9==="pobre";
+  if (tHas("fluvastatina") && (c9IM||c9PM||slPob)){
+    const alt = slPob && (c9IM||c9PM);
+    add(alt?"alto":"moderado","Farmacogenômica","Fluvastatina com CYP2C9 e/ou SLCO1B1 reduzidos",
+      "Maior exposição à fluvastatina e risco de miopatia.",
+      alt ? "SLCO1B1 pobre + CYP2C9 IM/PM: prescrever estatina alternativa." : (c9PM ? "Evitar doses >20 mg/dia." : "Evitar doses >40 mg/dia."),
+      "CPIC — estatinas (2022)");
+  }
+  if (S.gestante && est.length){
+    add("moderado","Gestação","Estatina na gestação",
+      `${tListar(est)}: as bulas brasileiras contraindicam o uso na gestação; o FDA (2021) recomenda suspender na maioria das gestantes.`,
+      "Discutir suspensão com o prescritor (exceções: risco cardiovascular muito alto, ex.: hipercolesterolemia familiar homozigótica).",
+      "Bulas das estatinas; FDA Drug Safety Communication 2021");
+  }
+  if (hep && est.length){
+    add("moderado","Dose × órgão","Estatina em disfunção hepática",
+      `${tListar(est)}: contraindicada(s) em insuficiência hepática aguda ou cirrose descompensada (bulas FDA atuais); as bulas brasileiras ainda citam doença hepática ativa ou elevação persistente de transaminases.`,
+      "Confirmar a natureza da alteração hepática, avaliar enzimas hepáticas e solicitar avaliação médica antes de manter/iniciar.",
+      "Bulas das estatinas");
+  }
+  if (tHas("rosuvastatina") && renalGrave){
+    add("moderado","Dose × órgão","Rosuvastatina com ClCr <30 mL/min",
+      "Exposição aumentada na insuficiência renal grave (sem hemodiálise).",
+      "Iniciar com 5 mg/dia e não exceder 10 mg/dia.",
+      "Bula da rosuvastatina");
+  }
+
+  /* ---------------- Antidiabéticos ---------------- */
+  if (tHas("metformina") && renalRed){
+    add(renalGrave?"alto":"moderado","Dose × órgão","Metformina em disfunção renal",
+      renalGrave ? "TFG <30: metformina contraindicada (risco de acidose lática)." : "TFG 30–45: não iniciar metformina; se já em uso, reavaliar risco/benefício e considerar redução de dose (máx. habitual 1.000 mg/dia).",
+      renalGrave ? "Suspender/trocar com o prescritor." : "Monitorar a TFG pelo menos a cada 3–6 meses e ajustar com o prescritor.",
+      "Bula da metformina; FDA Drug Safety Communication 2016");
+  }
+  if (tHas("metformina") && hep){
+    add("moderado","Dose × órgão","Metformina em disfunção hepática",
+      "A hepatopatia reduz a depuração do lactato e aumenta o risco de acidose lática.",
+      "Evitar em insuficiência hepática; discutir com o prescritor.",
+      "Bula da metformina");
+  }
+  if (su.length && renalRed){
+    const gliben = su.includes("glibenclamida");
+    add(renalGrave?"alto":(gliben?"moderado":"baixo"),"Dose × órgão","Sulfonilureia em disfunção renal",
+      `${tListar(su)}: risco de hipoglicemia prolongada por acúmulo` + (gliben?" — a glibenclamida tem metabólitos ativos de eliminação renal.":"."),
+      renalGrave ? "As bulas brasileiras contraindicam sulfonilureias na insuficiência renal grave (orientam insulina); discutir a troca com o prescritor." : "Evitar glibenclamida; usar a menor dose de gliclazida/glimepirida e reforçar automonitorização.",
+      "Bulas das sulfonilureias (Diamicron®, glibenclamida, glimepirida)");
+  }
+  if (su.length && hep){
+    add("moderado","Dose × órgão","Sulfonilureia em disfunção hepática",
+      `${tListar(su)}: menor gliconeogênese e metabolismo reduzido aumentam o risco de hipoglicemia.`,
+      "Evitar em insuficiência hepática grave; usar a menor dose com monitorização glicêmica.",
+      "Bulas das sulfonilureias");
+  }
+  if (su.length>=2){
+    add("moderado","Duplicidade","Duas sulfonilureias simultâneas",
+      `${tListar(su)}: mesmo mecanismo, sem benefício adicional e com maior risco de hipoglicemia.`,
+      "Manter apenas uma sulfonilureia.",
+      "Duplicidade terapêutica");
+  }
+  if (dpp4.length>=2){
+    add("moderado","Duplicidade","Dois inibidores da DPP-4",
+      `${tListar(dpp4)}: mesmo mecanismo, sem benefício adicional.`,
+      "Manter apenas um inibidor da DPP-4.",
+      "Duplicidade terapêutica");
+  }
+  if (dpp4.length && glp1.length){
+    add("baixo","Duplicidade","Inibidor da DPP-4 + agonista do GLP-1",
+      `${tListar(dpp4)} com ${tListar(glp1)}: atuam no mesmo eixo incretínico, sem benefício glicêmico adicional.`,
+      "Associação não recomendada; suspender o inibidor da DPP-4 ao iniciar o agonista do GLP-1.",
+      "ADA — Standards of Care in Diabetes");
+  }
+  if (su.length && ins.length){
+    add("moderado","Interação","Sulfonilureia + insulina",
+      "Risco aditivo de hipoglicemia.",
+      "Revisar a necessidade da sulfonilureia ao intensificar a insulina; reforçar automonitorização e manejo da hipoglicemia.",
+      "Bulas das sulfonilureias e insulinas; ADA Standards of Care");
+  }
+  const incretSglt = dpp4.concat(glp1, sglt2);
+  if (incretSglt.length && hipoglic.length){
+    add("baixo","Interação",`${tListar(incretSglt)} + ${tListar(hipoglic)}`,
+      "A associação aumenta o risco de hipoglicemia causado pela sulfonilureia/insulina.",
+      "As bulas recomendam considerar dose menor da sulfonilureia/insulina ao associar.",
+      "Bulas de inibidores da DPP-4, agonistas do GLP-1 e inibidores da SGLT2");
+  }
+  if (sglt2.length && alca.length){
+    add("baixo","Interação",`${tListar(sglt2)} + diurético de alça`,
+      "Efeito diurético aditivo, com risco de depleção de volume e hipotensão (especialmente em idosos).",
+      "Avaliar volemia e PA; considerar ajuste do diurético.",
+      "Bulas de dapagliflozina e empagliflozina");
+  }
+  const dppRenal = tSome(["sitagliptina","vildagliptina","saxagliptina"]);
+  if (dppRenal.length && renalRed){
+    add("moderado","Dose × órgão",`${tListar(dppRenal)} em disfunção renal`,
+      "Eliminação renal relevante; a dose depende da TFG (a linagliptina não requer ajuste).",
+      "Ajustar conforme bula: sitagliptina 50 mg/dia com TFG 30–44 e 25 mg/dia com TFG <30; saxagliptina 2,5 mg/dia com TFG <45; vildagliptina 50 mg/dia com TFG <50.",
+      "Bulas de sitagliptina, vildagliptina e saxagliptina");
+  }
+  if (sglt2.length && renalGrave){
+    add("baixo","Dose × órgão",`${tListar(sglt2)} com TFG <30`,
+      "O efeito hipoglicemiante diminui com a queda da TFG; o benefício renal/cardiovascular pode persistir.",
+      "Conferir o limiar de início/manutenção da bula para a indicação (DM2, IC ou DRC).",
+      "Bulas de dapagliflozina e empagliflozina");
+  }
+  if (tHas("pioglitazona") && S.ic){
+    add("alto","Contraindicação","Pioglitazona em insuficiência cardíaca",
+      "A pioglitazona causa retenção hídrica e pode precipitar ou agravar IC; contraindicada em IC classe III–IV.",
+      "Contatar o prescritor para alternativa.",
+      "Bula da pioglitazona (advertência em destaque)");
+  }
+  if (tHas("pioglitazona") && ins.length){
+    add("baixo","Interação","Pioglitazona + insulina",
+      "Maior incidência de edema e de insuficiência cardíaca com a associação.",
+      "Monitorar peso, edema e sintomas de IC.",
+      "Bula da pioglitazona");
+  }
+  if (tHas("pioglitazona") && hep){
+    add("moderado","Dose × órgão","Pioglitazona em disfunção hepática",
+      "Não iniciar se ALT >2,5× o limite superior; suspender se ALT >3× com sintomas.",
+      "Solicitar/confirmar enzimas hepáticas antes de manter.",
+      "Bula da pioglitazona");
+  }
+  if (tHas("saxagliptina") && S.ic){
+    add("moderado","Precaução","Saxagliptina em insuficiência cardíaca",
+      "A saxagliptina associou-se a aumento de hospitalização por IC.",
+      "Avaliar alternativa (ex.: linagliptina/sitagliptina ou inibidor da SGLT2) com o prescritor.",
+      "Bula da saxagliptina (estudo SAVOR-TIMI 53)");
+  }
+  const dmInd = su.concat(tSome(["pioglitazona","linagliptina"]));
+  if (dmInd.length && ind.length){
+    add("moderado","Interação",`${tListar(dmInd)} + ${indTxt}`,
+      `${indTxt} induz(em) o metabolismo e reduz(em) o efeito hipoglicemiante, com risco de descontrole glicêmico (e hipoglicemia ao suspender o indutor).`,
+      "Monitorar glicemia; ajustar a dose ou considerar alternativa (a bula da linagliptina recomenda alternativa com indutores fortes de P-gp/CYP3A4).",
+      "Bulas da rifampicina, pioglitazona e linagliptina");
+  }
+  if (cort.length && (S.diabetes || hipoglic.length || tCls("metf").length || incretSglt.length || tHas("pioglitazona"))){
+    add("moderado","Interação","Corticoide em paciente com diabetes",
+      `${tListar(cort)} eleva(m) a glicemia (principalmente à tarde/noite), podendo descompensar o diabetes.`,
+      "Intensificar a monitorização glicêmica durante o curso de corticoide e alinhar ajuste do antidiabético.",
+      "Bulas dos corticosteroides");
+  }
+  if (S.idoso && su.length){
+    add("moderado","Idoso","Sulfonilureia em idoso",
+      `${tListar(su)}: maior risco de hipoglicemia, eventos cardiovasculares e mortalidade em idosos.`,
+      "Evitar sulfonilureias (todas) como 1ª ou 2ª linha, salvo barreiras importantes ao uso de metformina, agonistas do GLP-1 ou inibidores da SGLT2; se necessário, preferir a de ação curta, em dose baixa.",
+      "Critérios de Beers AGS 2023");
+  }
+  const dmOral = TRIAGE_MEDS.filter(m=>["metf","su","tzd","dpp4","sglt2","glp1"].includes(m.cls) && tHas(m.id)).map(m=>m.id);
+  if (S.gestante && dmOral.length){
+    add("baixo","Gestação","Antidiabético não insulínico na gestação",
+      `${tListar(dmOral)}: a insulina é o tratamento preferido na gestação; metformina e glibenclamida atravessam a placenta e os demais não são recomendados.`,
+      "Encaminhar para ajuste do esquema com o prescritor.",
+      "ADA — Standards of Care in Diabetes (gestação)");
+  }
+
+  /* ---------------- Anti-hipertensivos ---------------- */
+  if (ieca.length && bra.length){
+    add("alto","Interação","IECA + BRA (duplo bloqueio do SRAA)",
+      `${tListar(ieca)} com ${tListar(bra)}: mais hipercalemia, hipotensão e lesão renal, sem benefício cardiovascular.`,
+      "Evitar a associação; manter apenas um bloqueador do SRAA.",
+      "Bulas de IECA/BRA; estudo ONTARGET");
+  }
+  if (ieca.length>=2 || bra.length>=2){
+    add("moderado","Duplicidade","Dois fármacos da mesma classe (IECA ou BRA)",
+      `${tListar(ieca.length>=2?ieca:bra)}: sem benefício adicional.`,
+      "Manter apenas um.",
+      "Duplicidade terapêutica");
+  }
+  if (sraa.length && poupk.length){
+    add(renalRed?"alto":"moderado","Interação",`${tListar(sraa)} + ${tListar(poupk)}`,
+      "Risco de hipercalemia" + (renalRed?", aumentado pela disfunção renal.":"."),
+      "Monitorar potássio e creatinina (ex.: na 1ª semana e periodicamente); evitar suplementos de K+.",
+      "Bulas de espironolactona/amilorida e IECA/BRA");
+  }
+  if (sraa.length && diur.length && aine.length){
+    add("alto","Interação","“Tripla ameaça” renal: IECA/BRA + diurético + AINE",
+      `${tListar(sraa)} + ${tListar(diur)} + ${tListar(aine)}: risco aumentado de lesão renal aguda, sobretudo no início do uso.`,
+      "Evitar o AINE; se indispensável, curto prazo com hidratação adequada e controle de creatinina.",
+      "Lapi et al., BMJ 2013; bulas dos AINEs");
+  } else if (sraa.length && aine.length){
+    add("moderado","Interação",`${tListar(sraa)} + AINE`,
+      `${tListar(aine)} reduz(em) o efeito anti-hipertensivo e aumenta(m) o risco de piora da função renal e de hipercalemia.`,
+      "Evitar uso prolongado do AINE; monitorar PA, creatinina e potássio.",
+      "Bulas de IECA/BRA e AINEs");
+  } else if (diur.length && aine.length){
+    add("baixo","Interação","Diurético + AINE",
+      `${tListar(aine)} pode(m) reduzir o efeito diurético e anti-hipertensivo de ${tListar(diur)}.`,
+      "Monitorar PA e sinais de retenção hídrica.",
+      "Bulas dos diuréticos e AINEs");
+  }
+  if (S.gestante && sraa.length){
+    add("alto","Gestação","IECA/BRA na gestação",
+      `${tListar(sraa)}: fetotoxicidade (lesão renal fetal, oligoidrâmnio), sobretudo no 2º e 3º trimestres.`,
+      "Contraindicado — encaminhar ao prescritor para troca (ex.: metildopa, nifedipino, labetalol).",
+      "Bulas de IECA/BRA (advertência em destaque)");
+  }
+  if (sraa.length && renalRed){
+    add("baixo","Dose × órgão","IECA/BRA em disfunção renal",
+      "Risco de hipercalemia e de piora transitória da creatinina.",
+      "Monitorar potássio e creatinina após início ou ajuste de dose (alguns IECA exigem ajuste de dose).",
+      "Bulas de IECA/BRA");
+  }
+  if (bb.length && ndhp.length){
+    add("alto","Interação",`Betabloqueador + ${tListar(ndhp)}`,
+      `${tListar(bb)} com ${tListar(ndhp)}: efeito aditivo sobre o nó sinusal/AV, com risco de bradicardia grave, bloqueio AV e IC.`,
+      "Evitar a associação, sobretudo com disfunção ventricular; se mantida, monitorar FC, ECG e sinais de IC.",
+      "Bulas do verapamil e do diltiazem");
+  }
+  if (bb.length && tHas("clonidina")){
+    add("moderado","Interação","Betabloqueador + clonidina",
+      "Bradicardia e bloqueio AV aditivos; o betabloqueador pode agravar a hipertensão rebote que ocorre na retirada da clonidina.",
+      "Não suspender a clonidina de forma abrupta; ao descontinuar, retirar o betabloqueador alguns dias antes e reduzir a clonidina gradualmente. Monitorar FC.",
+      "Bulas da clonidina e do metoprolol");
+  }
+  const cloOutros = ndhp.concat(tSome(["digoxina"]));
+  if (tHas("clonidina") && cloOutros.length){
+    add("baixo","Interação",`Clonidina + ${tListar(cloOutros)}`,
+      "Efeito aditivo sobre o nó sinusal/AV, com risco de bradicardia e bloqueio AV.",
+      "Monitorar FC e sintomas (tontura, síncope).",
+      "Bula da clonidina");
+  }
+  if (ndhp.length && S.ic){
+    add("alto","Contraindicação",`${tListar(ndhp)} em insuficiência cardíaca`,
+      "Efeito inotrópico negativo; associados a piora da IC com fração de ejeção reduzida.",
+      "Evitar na IC com FE reduzida; discutir alternativa com o prescritor.",
+      "Diretriz AHA/ACC/HFSA 2022 de IC; bulas do verapamil/diltiazem");
+  }
+  if (ndhp.length && tHas("amiodarona")){
+    add("moderado","Interação",`Amiodarona + ${tListar(ndhp)}`,
+      "Risco aditivo de bradicardia, bloqueio AV e hipotensão.",
+      "Monitorar FC e ECG.",
+      "Bula da amiodarona");
+  }
+  if (diur.length && cort.length){
+    add("moderado","Interação","Diurético + corticoide",
+      `${tListar(diur)} com ${tListar(cort)}: risco aumentado de hipocalemia.`,
+      "Monitorar potássio, sobretudo em cursos prolongados ou com digoxina.",
+      "Bulas dos diuréticos e corticosteroides");
+  }
+  if (poupk.length && renalGrave){
+    add("alto","Dose × órgão",`${tListar(poupk)} com ClCr <30 mL/min`,
+      "Alto risco de hipercalemia grave na insuficiência renal significativa.",
+      "Uso contraindicado/desaconselhado pelas bulas — contatar o prescritor.",
+      "Bulas da espironolactona e amilorida");
+  }
+  if (tHas("metildopa") && hep){
+    add("moderado","Dose × órgão","Metildopa em disfunção hepática",
+      "A metildopa é contraindicada em doença hepática ativa (pode causar hepatite).",
+      "Confirmar a condição hepática e discutir alternativa.",
+      "Bula da metildopa");
+  }
+  const bcc = dhp.concat(ndhp);
+  if (bcc.length && ind.length){
+    add("moderado","Interação",`${tListar(bcc)} + ${indTxt}`,
+      `${indTxt} induz(em) o CYP3A4 e reduz(em) muito a exposição a ${tListar(bcc)}, com perda do controle pressórico/de frequência.`,
+      "Monitorar PA/FC; considerar alternativa não dependente de CYP3A4.",
+      "Bulas de nifedipino, verapamil, diltiazem e rifampicina");
+  }
+
+  /* ---------------- Antiarrítmicos / digoxina ---------------- */
+  if (tHas("amiodarona") && bb.length){
+    add("moderado","Interação",`Amiodarona + ${tListar(bb)}`,
+      "Risco aditivo de bradicardia sinusal, bloqueio AV e hipotensão.",
+      "Monitorar FC e ECG, principalmente no início.",
+      "Bula da amiodarona");
+  }
+  if (S.gestante && tHas("amiodarona")){
+    add("alto","Gestação","Amiodarona na gestação",
+      "Pode causar dano fetal (hipo/hipertireoidismo fetal, bradicardia, alterações do desenvolvimento).",
+      "Contatar o prescritor para avaliar alternativa.",
+      "Bula da amiodarona");
+  }
+  if (S.idoso && tHas("amiodarona")){
+    add("baixo","Idoso","Amiodarona em idoso",
+      "Maior toxicidade (tireoide, pulmão, fígado, QT) que outros antiarrítmicos.",
+      "Evitar como 1ª linha na FA, exceto com IC ou hipertrofia ventricular importante.",
+      "Critérios de Beers AGS 2023");
+  }
+  if (tHas("digoxina")){
+    // Tabela 7.2 da bula da digoxina (FDA): aumento da concentração sérica/AUC
+    const DIG_MAIOR = { amiodarona:"~70%", propafenona:"60–270% (AUC)", verapamil:"50–75%", captopril:"58%" };
+    const DIG_MENOR = { diltiazem:"20%", nifedipino:"45%", espironolactona:"25%", carvedilol:"~15%", telmisartana:"20–49%", ticagrelor:"31%", atorvastatina:"22%", rabeprazol:"29%" };
+    const digMaior = Object.keys(DIG_MAIOR).filter(tHas), digMenor = Object.keys(DIG_MENOR).filter(id=>tHas(id) && id!=="ticagrelor");
+    if (digMaior.length) add(tHas("amiodarona")||tHas("propafenona")?"alto":"moderado","Interação",`Digoxina + ${tListar(digMaior)}`,
+      `Aumento da concentração de digoxina acima de 50% (${digMaior.map(id=>triageNome(id)+": "+DIG_MAIOR[id]).join("; ")}), com risco de intoxicação digitálica.`,
+      "Medir a digoxina sérica antes de associar; reduzir a dose de digoxina em ~30–50% (ou espaçar as doses) e continuar monitorando.",
+      "Bula da digoxina (FDA), tabela de interações");
+    if (digMenor.length) add("baixo","Interação",`Digoxina + ${tListar(digMenor)}`,
+      `Aumento da concentração de digoxina abaixo de 50% (${digMenor.map(id=>triageNome(id)+": "+DIG_MENOR[id]).join("; ")}).`,
+      "Medir a digoxina sérica antes de associar; considerar reduzir a dose em ~15–30% e monitorar.",
+      "Bula da digoxina (FDA), tabela de interações");
+    if (tHas("amiodarona") || ndhp.length) add("moderado","Interação","Digoxina + fármaco que deprime o nó AV",
+      `${tListar(tSome(["amiodarona"]).concat(ndhp))} soma(m) efeito sobre o nó sinusal/AV com a digoxina (bradicardia, bloqueio AV).`,
+      "Monitorar FC e ECG.",
+      "Bulas da amiodarona, verapamil e diltiazem");
+    if (diur.length) add("moderado","Interação","Digoxina + diurético espoliador de potássio",
+      `${tListar(diur)} pode(m) causar hipocalemia/hipomagnesemia, que aumentam a toxicidade da digoxina.`,
+      "Monitorar potássio e magnésio; corrigir distúrbios.",
+      "Bula da digoxina");
+    if (bb.length) add("baixo","Interação","Digoxina + betabloqueador",
+      "Digitálicos e betabloqueadores retardam a condução AV e reduzem a FC; a associação aumenta o risco de bradicardia.",
+      "Monitorar FC.",
+      "Bulas do carvedilol e do metoprolol");
+    const ibpMg = ibp.length;
+    if (ibpMg) add("baixo","Interação",`Digoxina + ${tListar(ibp)}`,
+      "O uso prolongado de IBP pode causar hipomagnesemia, que aumenta a toxicidade da digoxina; esomeprazol e rabeprazol também elevam a concentração de digoxina.",
+      "Considerar dosar magnésio antes e periodicamente durante o uso prolongado do IBP.",
+      "Bulas dos IBPs e da digoxina (FDA)");
+    if (ind.length) add("moderado","Interação",`Digoxina + ${indTxt}`,
+      `${indTxt} induz(em) a P-gp e reduz(em) os níveis de digoxina.`,
+      "Monitorar resposta e nível sérico; reajustar ao iniciar ou suspender o indutor.",
+      "Bula da digoxina");
+    if (renalRed) add(renalGrave?"alto":"moderado","Dose × órgão","Digoxina em disfunção renal",
+      "A digoxina tem eliminação predominantemente renal; acumula na disfunção renal.",
+      "Reduzir dose conforme a função renal e monitorar nível sérico.",
+      "Bula da digoxina");
+    if (S.idoso) add("baixo","Idoso","Digoxina em idoso",
+      "Maior risco de toxicidade pela redução da depuração renal.",
+      "Evitar doses >0,125 mg/dia; não usar como 1ª linha para FA ou IC.",
+      "Critérios de Beers AGS 2023");
+  }
+  if (tHas("propafenona")){
+    const isrsProp = tSome(["paroxetina","fluoxetina","sertralina"]);
+    if (isrsProp.length) add("moderado","Interação",`Propafenona + ${tListar(isrsProp)}`,
+      "Inibidores de CYP2D6 (a bula cita paroxetina e sertralina) aumentam a concentração de propafenona, com risco pró-arrítmico.",
+      "Evitar a associação ou monitorar ECG; nunca associar inibidor de CYP2D6 e de CYP3A4 ao mesmo tempo.",
+      "Bula da propafenona (FDA)");
+    const bb2d6 = tSome(["metoprolol","propranolol"]);
+    if (bb2d6.length) add("moderado","Interação",`Propafenona + ${tListar(bb2d6)}`,
+      `A propafenona inibe o CYP2D6 e aumenta os níveis de ${tListar(bb2d6)}, além de ter efeito betabloqueador próprio.`,
+      "Monitorar FC/PA; considerar redução da dose do betabloqueador.",
+      "Bula da propafenona");
+    if (S.cyp2d6==="pobre") add("alto","Farmacogenômica","Propafenona em metabolizador pobre de CYP2D6",
+      "Exposição muito aumentada, com risco de efeitos pró-arrítmicos e betabloqueio.",
+      "Reduzir a dose em 70%, registrar ECG e monitorar concentração plasmática.",
+      "DPWG — propafenona e CYP2D6");
+    if (S.cyp2d6==="intermediario" || S.cyp2d6==="ultrarrapido") add("moderado","Farmacogenômica",`Propafenona em metabolizador ${S.cyp2d6==="intermediario"?"intermediário":"ultrarrápido"} de CYP2D6`,
+      "Exposição imprevisível à propafenona.",
+      "Monitorar concentração plasmática e ECG ou escolher antiarrítmico alternativo.",
+      "DPWG — propafenona e CYP2D6");
+    if (S.ic) add("alto","Contraindicação","Propafenona em insuficiência cardíaca",
+      "Efeito inotrópico negativo e pró-arrítmico; contraindicada em IC não controlada/cardiopatia estrutural.",
+      "Contatar o prescritor.",
+      "Bula da propafenona");
+    if (S.asmaDpoc) add("alto","Contraindicação","Propafenona em asma/DPOC",
+      "A propafenona tem atividade betabloqueadora; a bula a contraindica em doença broncoespástica ou DPOC grave.",
+      "Contatar o prescritor para alternativa.",
+      "Bula da propafenona (FDA)");
+  }
+
+  /* ---------------- AINEs / corticoides / analgésicos ---------------- */
+  if (aine.length>=2){
+    add("alto","Duplicidade","Dois AINEs simultâneos",
+      `${tListar(aine)}: sem benefício analgésico adicional e com maior toxicidade GI, renal e cardiovascular.`,
+      "Manter apenas um AINE (atenção a associações em produtos isentos de prescrição).",
+      "Bulas dos AINEs");
+  }
+  if (aine.length && renalRed){
+    add(renalGrave?"alto":"moderado","Dose × órgão","AINE em disfunção renal",
+      `${tListar(aine)}: redução de prostaglandinas renais, com risco de lesão renal aguda e hipercalemia.`,
+      renalGrave ? "Evitar AINE com TFG <30." : "Evitar uso prolongado; se necessário, menor dose pelo menor tempo com controle de creatinina.",
+      "Bulas dos AINEs; KDIGO 2012 (DRC)");
+  }
+  if (aine.length && S.ic){
+    add("alto","Contraindicação","AINE em insuficiência cardíaca",
+      `${tListar(aine)}: retenção de sódio/água e piora da IC, com risco de hospitalização.`,
+      "Evitar AINE; preferir paracetamol para analgesia.",
+      "AHA — Scientific Statement 2016 (fármacos que pioram a IC); bulas dos AINEs/coxibes");
+  }
+  const aineAsma = aine.concat(tSome(["aas"]));
+  if (aineAsma.length && S.asmaDpoc){
+    add("baixo","Precaução","AAS/AINE em paciente com asma",
+      `${tListar(aineAsma)}: parte dos asmáticos tem doença respiratória exacerbada por AAS/AINEs (broncoespasmo).`,
+      "Perguntar sobre crises após AAS/AINE; se houver histórico, evitar (inibidores seletivos de COX-2 costumam ser tolerados, com avaliação médica).",
+      "Bulas do AAS e dos AINEs");
+  }
+  if (aine.length && S.gestante){
+    add("alto","Gestação","AINE na gestação",
+      `${tListar(aine)}: a partir de ~20 semanas, risco de oligoidrâmnio/disfunção renal fetal; no 3º trimestre, fechamento prematuro do canal arterial.`,
+      "Evitar a partir de 20 semanas (salvo indicação específica); preferir paracetamol.",
+      "FDA Drug Safety Communication 2020; bulas dos AINEs");
+  }
+  if (tHas("nimesulida") && hep){
+    add("alto","Contraindicação","Nimesulida em disfunção hepática",
+      "A nimesulida tem risco de hepatotoxicidade grave e é contraindicada em hepatopatia.",
+      "Suspender/trocar com o prescritor; preferir paracetamol em dose reduzida ou dipirona.",
+      "Bula da nimesulida");
+  }
+  // CYP2C9 × AINEs (CPIC 2020)
+  const aineCYP = tSome(["ibuprofeno","celecoxibe"]);
+  if (aineCYP.length && (S.cyp2c9==="int10" || c9PM)){
+    add(c9PM?"moderado":"baixo","Farmacogenômica",`${tListar(aineCYP)} com função reduzida de CYP2C9`,
+      "Exposição aumentada ao AINE, com maior risco de efeitos adversos (GI, renal, cardiovascular).",
+      c9PM ? "Iniciar com 25–50% da menor dose inicial recomendada e titular com cautela." : "Iniciar com a menor dose inicial recomendada e titular com cautela.",
+      "CPIC — AINEs e CYP2C9 (2020)");
+  }
+  if (tHas("meloxicam") && (S.cyp2c9==="int10" || c9PM)){
+    add("moderado","Farmacogenômica","Meloxicam com função reduzida de CYP2C9",
+      "Meia-vida muito prolongada em metabolizadores reduzidos.",
+      c9PM ? "Escolher alternativa não metabolizada por CYP2C9." : "Iniciar com 50% da menor dose recomendada ou escolher alternativa.",
+      "CPIC — AINEs e CYP2C9 (2020)");
+  }
+  const oxicam = tSome(["piroxicam","tenoxicam"]);
+  if (oxicam.length && (S.cyp2c9==="int10" || c9PM)){
+    add("moderado","Farmacogenômica",`${tListar(oxicam)} com função reduzida de CYP2C9`,
+      "Meia-vida já longa e ainda mais prolongada em metabolizadores reduzidos.",
+      "Escolher alternativa não metabolizada por CYP2C9 (ou AINE de meia-vida curta).",
+      "CPIC — AINEs e CYP2C9 (2020)");
+  }
+  if (cort.length>=2){
+    add("moderado","Duplicidade","Dois corticoides sistêmicos",
+      `${tListar(cort)}: efeitos adversos somados sem benefício adicional.`,
+      "Manter apenas um corticoide e conferir a dose equivalente total.",
+      "Duplicidade terapêutica");
+  }
+  if (cort.length && ind.length){
+    add("moderado","Interação",`${tListar(cort)} + ${indTxt}`,
+      `${indTxt} aumenta(m) a depuração dos corticoides e pode(m) reduzir seu efeito.`,
+      "Monitorar resposta clínica; pode ser necessário aumentar a dose do corticoide.",
+      "Bulas da rifampicina e dos corticosteroides");
+  }
+  if (cort.length && S.ic){
+    add("baixo","Precaução","Corticoide em insuficiência cardíaca",
+      "Retenção de sódio e água pode descompensar a IC.",
+      "Monitorar peso, edema e PA durante o uso.",
+      "Bulas dos corticosteroides");
+  }
+  if (tHas("dipirona") && S.gestante){
+    add("moderado","Gestação","Dipirona na gestação",
+      "A bula orienta evitar no 1º trimestre e contraindica nos últimos 3 meses (risco de fechamento do canal arterial e complicações perinatais).",
+      "Preferir paracetamol; usar dipirona só no 2º trimestre e com indicação médica.",
+      "Bula da dipirona (ANVISA)");
+  }
+  if (tHas("dipirona") && tHas("sertralina")){
+    add("baixo","Interação","Dipirona + sertralina",
+      "A dipirona pode induzir CYP2B6/CYP3A4 e reduzir a concentração da sertralina.",
+      "Em uso regular de dipirona, monitorar a resposta clínica à sertralina.",
+      "Bula da dipirona (ANVISA); EMA/PRAC 2020");
+  }
+  if (tHas("paracetamol") && hep){
+    add("moderado","Dose × órgão","Paracetamol em disfunção hepática",
+      "Maior risco de hepatotoxicidade, especialmente com etilismo, desnutrição ou doses altas.",
+      "Usar a menor dose eficaz, evitar uso prolongado e não ultrapassar o limite reduzido orientado pelo prescritor (adulto saudável: máx. 4 g/dia).",
+      "Bula do paracetamol");
+  }
+
+  /* ---------------- IBP ---------------- */
+  const ibpClop = tSome(["omeprazol","esomeprazol"]);
+  if (tHas("clopidogrel") && ibpClop.length){
+    add("alto","Interação",`Clopidogrel + ${tListar(ibpClop)}`,
+      `${tListar(ibpClop)} inibe(m) o CYP2C19 e reduz(em) a formação do metabólito ativo do clopidogrel e a inibição plaquetária.`,
+      "Evitar a associação. Se houver indicação de IBP, preferir pantoprazol (sem efeito clinicamente importante sobre o clopidogrel na bula).",
+      "Bulas do clopidogrel e do omeprazol/esomeprazol (FDA)");
+  }
+  if (ibp.length>=2){
+    add("moderado","Duplicidade","Dois IBPs simultâneos",
+      `${tListar(ibp)}: mesmo mecanismo, sem benefício adicional.`,
+      "Manter apenas um IBP.",
+      "Duplicidade terapêutica");
+  }
+  if (ibp.length && tHas("varfarina")){
+    add("baixo","Interação",`Varfarina + ${tListar(ibp)}`,
+      "Há relatos de aumento do INR e do tempo de protrombina com IBPs.",
+      "Monitorar INR ao iniciar, alterar ou suspender o IBP.",
+      "Bulas dos IBPs (FDA)");
+  }
+  const ibpInd = tSome(["omeprazol","esomeprazol"]);
+  if (ibpInd.length && ind.length){
+    add("moderado","Interação",`${tListar(ibpInd)} + ${indTxt}`,
+      `${indTxt} induz(em) CYP2C19/CYP3A4 e reduz(em) de forma importante a exposição ao IBP.`,
+      "A bula orienta evitar a associação; avaliar alternativa e eficácia do tratamento antissecretor.",
+      "Bulas do omeprazol e do esomeprazol (FDA)");
+  }
+  if (ibpInd.length && tHas("citalopram")){
+    add("moderado","Interação",`Citalopram + ${tListar(ibpInd)}`,
+      `${tListar(ibpInd)} inibe(m) o CYP2C19 e aumenta(m) a exposição ao citalopram, com maior risco de prolongamento do QT.`,
+      "Dose máxima de citalopram de 20 mg/dia com inibidores de CYP2C19; considerar pantoprazol ou outro antidepressivo.",
+      "Bula do citalopram (FDA)");
+  }
+  if (ibp.length && diur.length && !tHas("digoxina")){
+    add("baixo","Interação",`${tListar(ibp)} + diurético`,
+      "O uso prolongado de IBP pode causar hipomagnesemia, que se soma às perdas de eletrólitos do diurético.",
+      "Em uso prolongado, considerar dosar magnésio periodicamente.",
+      "Bulas dos IBPs (FDA)");
+  }
+  const ibpPgx = tSome(["omeprazol","lansoprazol","pantoprazol","dexlansoprazol"]);
+  if (ibpPgx.length && S.cyp2c19==="ultrarrapido"){
+    add("moderado","Farmacogenômica",`${tListar(ibpPgx)} em metabolizador ultrarrápido de CYP2C19`,
+      "Exposição reduzida ao IBP, com maior chance de falha terapêutica (ex.: H. pylori, esofagite erosiva).",
+      "Aumentar a dose diária inicial (CPIC: em 100%) e monitorar a eficácia.",
+      "CPIC — IBPs e CYP2C19 (2020)");
+  }
+  if (ibpPgx.length && (S.cyp2c19==="rapido" || S.cyp2c19==="normal")){
+    add("baixo","Farmacogenômica",`${tListar(ibpPgx)} em metabolizador ${S.cyp2c19==="rapido"?"rápido":"normal"} de CYP2C19`,
+      "Exposição normal a levemente reduzida.",
+      "Dose inicial padrão; no tratamento de H. pylori ou esofagite erosiva, considerar aumentar a dose em 50–100% e monitorar a eficácia.",
+      "CPIC — IBPs e CYP2C19 (2020)");
+  }
+  if (ibpPgx.length && (S.cyp2c19==="intermediario" || S.cyp2c19==="pobre")){
+    add("baixo","Farmacogenômica",`${tListar(ibpPgx)} em metabolizador ${S.cyp2c19==="pobre"?"pobre":"intermediário"} de CYP2C19`,
+      "Exposição aumentada ao IBP (maior eficácia, mas possível aumento de efeitos do uso prolongado).",
+      "Dose inicial padrão; em uso crônico (>12 semanas) com eficácia alcançada, considerar reduzir a dose diária em 50%.",
+      "CPIC — IBPs e CYP2C19 (2020)");
+  }
+  if (ibp.length && S.idoso){
+    const justifica = aine.length || cort.length || (apq.length + ac.length) >= 2;
+    add("baixo","Idoso",`${tListar(ibp)} em idoso`,
+      "Uso contínuo >8 semanas associa-se a infecção por C. difficile, perda óssea/fraturas e deficiência de vitamina B12 e de magnésio." + (justifica?" Há fator de alto risco GI no esquema atual, o que pode justificar o uso.":""),
+      justifica ? "Manter enquanto durar o fator de risco (AINE/corticoide/antitrombóticos) e reavaliar depois." : "Evitar uso contínuo >8 semanas sem indicação (ex.: esofagite erosiva, Barrett, uso crônico de AINE/corticoide); avaliar desprescrição gradual.",
+      "Critérios de Beers AGS 2023; bulas dos IBPs");
+  }
+
+  /* ---------------- Erva-de-são-joão / rifampicina ---------------- */
+  if (tHas("hiperico") && isrs.length){
+    add("alto","Interação",`Erva-de-são-joão + ${tListar(isrs)}`,
+      "Efeito serotoninérgico somado, com risco de síndrome serotoninérgica (agitação, tremor, hipertermia, mioclonia).",
+      "Evitar a associação; orientar suspensão do fitoterápico e comunicar o prescritor.",
+      "Bulas dos ISRS; monografia do Hypericum (EMA)");
+  }
+  if (tHas("hiperico") && S.gestante){
+    add("baixo","Gestação","Erva-de-são-joão na gestação",
+      "Dados de segurança insuficientes na gestação e lactação, além do alto potencial de interações.",
+      "Uso não recomendado; orientar suspensão e comunicar o prescritor.",
+      "Monografia do Hypericum (EMA/HMPC)");
+  }
+  if (tHas("rifampicina") && hep){
+    add("moderado","Dose × órgão","Rifampicina em disfunção hepática",
+      "Risco aumentado de hepatotoxicidade.",
+      "Monitorar função hepática antes e durante o tratamento.",
+      "Bula da rifampicina");
+  }
+  if (ind.length && tCls("isrs").includes("sertralina") && !tHas("hiperico")){
+    add("baixo","Interação",`Sertralina + ${indTxt}`,
+      `${indTxt} pode(m) reduzir a concentração da sertralina (indução de CYP3A4/2B6).`,
+      "Monitorar resposta clínica ao antidepressivo.",
+      "Bulas da sertralina e da rifampicina");
+  }
+  if (tHas("rifampicina") && tSome(["metoprolol","propranolol","carvedilol"]).length){
+    add("baixo","Interação",`${tListar(tSome(["metoprolol","propranolol","carvedilol"]))} + rifampicina`,
+      "A rifampicina aumenta o metabolismo hepático desses betabloqueadores e pode reduzir seu efeito.",
+      "Monitorar FC/PA e ajustar a dose se necessário.",
+      "Bula da rifampicina");
+  }
+  if (tHas("rifampicina") && tHas("losartana")){
+    add("baixo","Interação","Losartana + rifampicina",
+      "A rifampicina reduz a exposição à losartana e ao seu metabólito ativo.",
+      "Monitorar a PA.",
+      "Bula da losartana");
   }
 
   const ord = { alto:3, moderado:2, baixo:1 };
@@ -3265,8 +4256,8 @@ function renderTriagem(){
     ? { label:"Sem alertas", alert:"ok" }
     : { label:TRIAGE_NIVEL[nivelGeral].label, alert:TRIAGE_NIVEL[nivelGeral].alert };
 
-  const medBtn = (d, on)=>`<button type="button" onclick="triageToggleMed('${d.id}')"
-      class="btn ${on?'primary':'outline'}" style="justify-content:flex-start;padding:9px 12px;${on?'':'border-style:dashed'}">
+  const medBtn = (d, on)=>`<button type="button" data-tmed="${escapeHtml(d.nome.toLowerCase())}" onclick="triageToggleMed('${d.id}')"
+      class="btn sm ${on?'primary':'outline'}" style="justify-content:flex-start;padding:8px 10px;text-align:left;${on?'':'border-style:dashed'}">
       ${on?'✓ ':''}${escapeHtml(d.nome)}</button>`;
 
   const selField = (key, label, opts)=>`<div>
@@ -3274,12 +4265,29 @@ function renderTriagem(){
       <select onchange="triageSet('${key}', this.value)">
         ${opts.map(o=>`<option value="${o[0]}" ${triageState[key]===o[0]?'selected':''}>${o[1]}</option>`).join('')}
       </select></div>`;
+  const chk = (key,label)=>`<label class="chk"><input type="checkbox" ${triageState[key]?'checked':''} onchange="triageChk('${key}')"> ${label}</label>`;
 
-  const naoSelBBs = TRIAGE_BB.filter(b=>!b.sel);
-  const selBBs = TRIAGE_BB.filter(b=>b.sel);
+  const groupsHtml = TRIAGE_GROUPS.map(g=>{
+    const ids = g.subs.flatMap(s=>s.meds.map(m=>m.id));
+    const nSel = ids.filter(tHas).length;
+    const open = triageOpen[g.id] || (triageBusca && true);
+    return `<details class="tg" data-g="${g.id}" ${open?'open':''} ontoggle="triageToggleGroup(this)">
+      <summary><span>${escapeHtml(g.titulo)}</span><span class="tg-n">${nSel?`<span class="badge purple">${nSel} em uso</span>`:''}<span class="muted small">${ids.length}</span></span></summary>
+      <div class="tg-body">
+        ${g.subs.map(s=>`<div class="tg-sub">
+          ${g.subs.length>1?`<h5 class="tg-sh">${escapeHtml(s.nome)}</h5>`:''}
+          <div class="grid grid-2" style="gap:6px">${s.meds.map(m=>medBtn(m,tHas(m.id))).join('')}</div>
+        </div>`).join('')}
+      </div>
+    </details>`;
+  }).join('');
+
+  const emUso = triageState.meds.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px">${triageState.meds.map(id=>`<button type="button" class="badge purple" style="cursor:pointer;border:0" onclick="triageToggleMed('${id}')" title="Remover">${escapeHtml(triageNome(id))} ✕</button>`).join('')}</div>`
+    : `<p class="small muted" style="margin:0">Nenhum medicamento selecionado.</p>`;
 
   const alertsHtml = alerts.length===0
-    ? `<div class="empty" style="padding:32px"><div class="icon">🛡️</div><h3>Nenhum alerta com os dados informados</h3><p>Selecione os medicamentos e o perfil do paciente. Registre também as fontes consultadas.</p></div>`
+    ? `<div class="empty" style="padding:32px"><div class="icon">🛡️</div><h3>Nenhum alerta com os dados informados</h3><p>Selecione os medicamentos e o perfil do paciente.</p></div>`
     : alerts.map(a=>{
         const nv = TRIAGE_NIVEL[a.nivel];
         return `<div class="int-card ${nv.card}">
@@ -3302,55 +4310,54 @@ function renderTriagem(){
     ${topbar('triagem')}
     <div class="container wide">
       <div class="sec-head">
-        <h2>Triagem de risco — Betabloqueadores × ISRS</h2>
-        <span class="badge purple">${TRIAGE_BB.length} betabloqueadores · ${TRIAGE_ISRS.length} ISRS</span>
+        <h2>Triagem de risco</h2>
+        <span class="badge purple">${TRIAGE_MEDS.length} medicamentos · ${TRIAGE_GROUPS.length} grupos</span>
       </div>
       <div class="alert warn" style="margin-bottom:20px">
         <span>⚠️</span>
-        <div><span class="t">Protótipo com regras ilustrativas.</span> Não substitui o julgamento clínico nem as fontes oficiais (CPIC/PharmGKB, bula, Micromedex/Lexicomp). Valide cada conduta antes de qualquer decisão real.</div>
+        <div><span class="t">Ferramenta de apoio à triagem.</span> As regras se baseiam em diretrizes CPIC/DPWG (ClinPGx), bulas (ANVISA/FDA/EMA) e nos Critérios de Beers 2023, mas não cobrem todas as interações nem substituem o julgamento clínico. Confirme na bula vigente e alinhe com o prescritor antes de qualquer conduta.</div>
       </div>
 
       <div class="grid grid-2" style="align-items:start">
-        <!-- Coluna de entrada -->
         <div style="display:flex;flex-direction:column;gap:16px">
           <div class="card">
             <div class="card-h"><div class="card-t">Perfil do paciente</div></div>
             <div class="card-c" style="display:flex;flex-direction:column;gap:14px">
               <div class="grid grid-2" style="gap:12px">
-                ${selField("funcaoRenal","Função renal (ClCr)", [["desconhecida","Desconhecida"],["normal","Normal"],["leve","Leve"],["moderada","Moderada"],["grave","Grave"]])}
+                ${selField("funcaoRenal","Função renal (ClCr / TFG)", [["desconhecida","Desconhecida"],["normal","Normal (≥ 90)"],["leve","Leve (60–89)"],["moderada","Moderada (30–59)"],["grave","Grave (< 30)"]])}
                 ${selField("funcaoHepatica","Função hepática", [["desconhecida","Desconhecida"],["normal","Normal"],["alterada","Alterada"]])}
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:18px;padding-top:2px">
-                <label class="chk"><input type="checkbox" ${triageState.asmaDpoc?'checked':''} onchange="triageChk('asmaDpoc')"> Asma / DPOC</label>
-                <label class="chk"><input type="checkbox" ${triageState.diabetes?'checked':''} onchange="triageChk('diabetes')"> Diabetes</label>
-                <label class="chk"><input type="checkbox" ${triageState.gestante?'checked':''} onchange="triageChk('gestante')"> Gestante</label>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px 18px;padding-top:2px">
+                ${chk('idoso','Idoso (≥ 65 anos)')}
+                ${chk('gestante','Gestante')}
+                ${chk('asmaDpoc','Asma / DPOC')}
+                ${chk('diabetes','Diabetes')}
+                ${chk('ic','Insuficiência cardíaca')}
+                ${chk('ulcera','Úlcera / sangramento GI prévio')}
+                ${chk('avc','AVC / AIT prévio')}
               </div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-h"><div class="card-t">Betabloqueadores em uso</div><p class="card-d">Não seletivos e β1-seletivos</p></div>
-            <div class="card-c">
-              <h5 class="sub-h" style="margin-top:0">Não seletivos</h5>
-              <div class="grid grid-2" style="gap:8px">${naoSelBBs.map(b=>medBtn(b,tHas(b.id))).join('')}</div>
-              <h5 class="sub-h">β1-seletivos</h5>
-              <div class="grid grid-2" style="gap:8px">${selBBs.map(b=>medBtn(b,tHas(b.id))).join('')}</div>
+            <div class="card-h"><div class="card-t">Medicamentos em uso</div><p class="card-d">Abra um grupo ou busque pelo nome</p></div>
+            <div class="card-c" style="display:flex;flex-direction:column;gap:12px">
+              <input type="search" id="tBusca" placeholder="Buscar medicamento…" value="${escapeHtml(triageBusca)}" oninput="triageFiltrar(this.value)" autocomplete="off">
+              ${emUso}
+              <div class="tg-list">${groupsHtml}</div>
             </div>
           </div>
 
           <div class="card">
-            <div class="card-h"><div class="card-t">ISRS em uso</div></div>
-            <div class="card-c">
-              <div class="grid grid-2" style="gap:8px">${TRIAGE_ISRS.map(i=>medBtn(i,tHas(i.id))).join('')}</div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-h"><div class="card-t">Perfil farmacogenômico</div><p class="card-d">Preencha o que estiver disponível</p></div>
+            <div class="card-h"><div class="card-t">Perfil farmacogenômico</div><p class="card-d">Preencha o que estiver disponível no laudo</p></div>
             <div class="card-c">
               <div class="grid grid-2" style="gap:12px">
                 ${selField("cyp2d6","CYP2D6", [["desconhecido","Desconhecido"],["normal","Normal"],["ultrarrapido","Ultrarrápido"],["intermediario","Intermediário"],["pobre","Pobre (lento)"]])}
                 ${selField("cyp2c19","CYP2C19", [["desconhecido","Desconhecido"],["normal","Normal"],["rapido","Rápido"],["ultrarrapido","Ultrarrápido"],["intermediario","Intermediário"],["pobre","Pobre (lento)"]])}
+                ${selField("cyp2c9","CYP2C9", [["desconhecido","Desconhecido"],["normal","Normal (AS 2)"],["int15","Intermediário (AS 1,5)"],["int10","Intermediário (AS 1)"],["pobre","Pobre (AS 0–0,5)"]])}
+                ${selField("slco1b1","SLCO1B1", [["desconhecido","Desconhecido"],["normal","Função normal"],["aumentada","Função aumentada"],["diminuida","Função diminuída / possivelmente diminuída"],["pobre","Função pobre"]])}
+                ${selField("abcg2","ABCG2", [["desconhecido","Desconhecido"],["normal","Função normal"],["diminuida","Função diminuída"],["pobre","Função pobre"]])}
+                ${selField("vkorc1","VKORC1 −1639G>A", [["desconhecido","Desconhecido"],["GG","GG"],["GA","GA"],["AA","AA"]])}
               </div>
             </div>
           </div>
@@ -3358,11 +4365,10 @@ function renderTriagem(){
           <button class="btn ghost" style="align-self:flex-start" onclick="triageReset()">↺ Limpar triagem</button>
         </div>
 
-        <!-- Coluna de resultado -->
         <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:76px">
           <div class="alert ${geral.alert}" style="align-items:center;justify-content:space-between">
             <div><div class="small muted" style="text-transform:uppercase;letter-spacing:.06em">Estratificação geral</div><div style="font-size:22px;font-weight:700;margin-top:2px">${geral.label}</div></div>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
               <span class="badge red">${cont.alto} alto</span>
               <span class="badge yellow">${cont.moderado} moderado</span>
               <span class="badge cyan">${cont.baixo} baixo</span>
@@ -3376,32 +4382,59 @@ function renderTriagem(){
       </div>
       ${footer()}
     </div>`;
+  if (triageBusca) triageFiltrar(triageBusca, true);
 }
 window.triageToggleMed = function(id){
   const i = triageState.meds.indexOf(id);
   if (i>=0) triageState.meds.splice(i,1); else triageState.meds.push(id);
+  if (TMED[id]) triageOpen[TMED[id].grupo] = true;
+  const y = window.scrollY;
   renderTriagem();
+  window.scrollTo(0, y);
 };
-window.triageSet = function(key,val){ triageState[key]=val; renderTriagem(); };
-window.triageChk = function(key){ triageState[key]=!triageState[key]; renderTriagem(); };
+window.triageToggleGroup = function(el){ if (!triageBusca) triageOpen[el.dataset.g] = el.open; };
+window.triageFiltrar = function(q, fromRender){
+  triageBusca = q;
+  const s = q.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  document.querySelectorAll('details.tg').forEach(d=>{
+    let n = 0;
+    d.querySelectorAll('[data-tmed]').forEach(b=>{
+      const nome = b.dataset.tmed.normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const ok = !s || nome.includes(s);
+      b.style.display = ok ? '' : 'none';
+      if (ok) n++;
+    });
+    d.querySelectorAll('.tg-sub').forEach(sub=>{
+      sub.style.display = [...sub.querySelectorAll('[data-tmed]')].some(b=>b.style.display!=='none') ? '' : 'none';
+    });
+    d.style.display = n ? '' : 'none';
+    if (s) d.open = true; else if (!fromRender) d.open = !!triageOpen[d.dataset.g];
+  });
+};
+window.triageSet = function(key,val){ triageState[key]=val; const y=window.scrollY; renderTriagem(); window.scrollTo(0,y); };
+window.triageChk = function(key){ triageState[key]=!triageState[key]; const y=window.scrollY; renderTriagem(); window.scrollTo(0,y); };
 window.triageReset = function(){
-  triageState = { gestante:false, asmaDpoc:false, diabetes:false, funcaoRenal:"desconhecida", funcaoHepatica:"desconhecida", meds:[], cyp2d6:"desconhecido", cyp2c19:"desconhecido" };
+  triageState = TRIAGE_EMPTY(); triageOpen = {}; triageBusca = "";
   renderTriagem();
 };
 window.triageCopy = function(){
+  const S = triageState;
   const alerts = runTriagem();
   const cont = { alto:0, moderado:0, baixo:0 }; alerts.forEach(a=>cont[a.nivel]++);
   const nivelGeral = cont.alto?"Risco alto":cont.moderado?"Risco moderado":cont.baixo?"Risco baixo":"Sem alertas";
+  const sn = v => v ? "sim" : "não";
   const linhas = [
-    "TRIAGEM DE RISCO — FARMACOMPANHA (Betabloqueadores × ISRS) — protótipo",
+    "TRIAGEM DE RISCO — FARMACOMPANHA",
     "Data/hora: " + new Date().toLocaleString('pt-BR'),
     "Nível geral: " + nivelGeral,
-    "Perfil: Renal " + triageState.funcaoRenal + " | Hepática " + triageState.funcaoHepatica + " | Asma/DPOC " + (triageState.asmaDpoc?"sim":"não") + " | Diabetes " + (triageState.diabetes?"sim":"não") + " | Gestante " + (triageState.gestante?"sim":"não"),
-    "CYP2D6: " + triageState.cyp2d6 + " | CYP2C19: " + triageState.cyp2c19,
-    "Medicamentos: " + (triageState.meds.length? triageState.meds.map(triageNome).join(", ") : "—"),
+    "Perfil: Renal " + S.funcaoRenal + " | Hepática " + S.funcaoHepatica + " | Idoso " + sn(S.idoso) + " | Gestante " + sn(S.gestante) + " | Asma/DPOC " + sn(S.asmaDpoc) + " | Diabetes " + sn(S.diabetes) + " | IC " + sn(S.ic) + " | Úlcera/sangr. GI " + sn(S.ulcera) + " | AVC/AIT " + sn(S.avc),
+    "Farmacogenômica: CYP2D6 " + S.cyp2d6 + " | CYP2C19 " + S.cyp2c19 + " | CYP2C9 " + S.cyp2c9 + " | SLCO1B1 " + S.slco1b1 + " | ABCG2 " + S.abcg2 + " | VKORC1 " + S.vkorc1,
+    "Medicamentos: " + (S.meds.length? S.meds.map(triageNome).join(", ") : "—"),
     "",
     "Alertas (" + alerts.length + "):",
-    ...alerts.map(a=>`- [${a.nivel.toUpperCase()}] ${a.titulo} — Conduta: ${a.conduta} (Fonte: ${a.fonte})`)
+    ...alerts.map(a=>`- [${a.nivel.toUpperCase()}] ${a.titulo} — Conduta: ${a.conduta} (Fonte: ${a.fonte})`),
+    "",
+    "Ferramenta de apoio; não substitui o julgamento clínico nem a bula vigente."
   ];
   const txt = linhas.join("\n");
   if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast("Registro copiado")); }
